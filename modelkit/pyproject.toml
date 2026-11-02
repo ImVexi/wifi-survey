@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modelkit"
+version = "1.0.0"
+description = "Deterministic house-scan to floor-plan pipeline"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+  "numpy>=1.26",
+  "shapely>=2.0",
+  "trimesh>=4.0",
+  "pillow>=10.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+modelkit = "modelkit.cli:main"
+
+[tool.setuptools]
+packages = ["modelkit"]
+package-dir = { "modelkit" = "." }
+
+[tool.setuptools.package-data]
+modelkit = ["README.md"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["UP031", "BLE001", "E501", "B905"]

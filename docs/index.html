@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wi-Fi Survey — self-hosted Wi-Fi heatmaps on your own 3D floor plan</title>
+<meta name="description" content="Self-hosted Wi-Fi survey: import a 3D scan of your home, place access points, walk with a laptop or phone, and get heatmaps, a calibrated model and live position.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body data-page="index">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle navigation">☰ <span>Menu</span></button>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="brand-tag">docs</span></a>
+  <div class="search" role="search">
+    <input id="searchInput" type="search" placeholder="Search docs…  ( / )" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <noscript>
+      <div class="nav-group">
+        <p class="nav-group-title">Chapters</p>
+        <ul class="nav-list">
+          <li><a class="nav-link" href="index.html">Overview</a></li>
+          <li><a class="nav-link" href="install.html">Install</a></li>
+          <li><a class="nav-link" href="quickstart.html">Quickstart</a></li>
+          <li><a class="nav-link" href="concepts.html">Concepts</a></li>
+          <li><a class="nav-link" href="scanner-nodes.html">Scanner nodes</a></li>
+          <li><a class="nav-link" href="model-import.html">3D model import</a></li>
+          <li><a class="nav-link" href="survey.html">Running a survey</a></li>
+          <li><a class="nav-link" href="heatmaps.html">Heatmaps</a></li>
+          <li><a class="nav-link" href="propagation-model.html">Propagation model</a></li>
+          <li><a class="nav-link" href="position.html">Live position</a></li>
+          <li><a class="nav-link" href="unifi.html">UniFi integration</a></li>
+          <li><a class="nav-link" href="tuning.html">Tuning recommendations</a></li>
+          <li><a class="nav-link" href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a class="nav-link" href="faq.html">FAQ</a></li>
+          <li><a class="nav-link" href="privacy.html">Privacy</a></li>
+          <li><a class="nav-link" href="contributing.html">Contributing</a></li>
+          <li><a class="nav-link" href="changelog.html">Changelog</a></li>
+        </ul>
+        <p class="nojs-note">JavaScript is off: this list is the full chapter index, but in-page search, the table of contents and the copy buttons are unavailable.</p>
+      </div>
+    </noscript>
+  </aside>
+
+  <main class="content" id="main">
+    <article>
+
+      <section class="hero">
+        <div class="hero-copy">
+          <span class="eyebrow">v0.1 · self-hosted · LAN only</span>
+          <h1>See exactly where your Wi&#8209;Fi is good.</h1>
+          <p class="lede">Wi-Fi Survey is built to turn a 3D scan of your home into an interactive coverage map: you place your access points, walk the rooms with a laptop or phone, and the server turns those readings into heatmaps, a wall-aware propagation model and a live position estimate — all on your own hardware, with no cloud account and no data leaving the LAN. v0.1 ships the scaffold (install, model import, pairing, reading ingest); the survey and modelling chapters are marked <strong>planned</strong>.</p>
+          <div class="actions">
+            <a class="btn primary" href="quickstart.html">Quickstart →</a>
+            <a class="btn" href="install.html">Install</a>
+            <a class="btn" href="concepts.html">How it works</a>
+          </div>
+        </div>
+        <figure class="hero-art" aria-label="Diagram of a floor plan with signal heat around an access point">
+          <svg viewBox="0 0 340 260" role="img" aria-labelledby="hero-art-title">
+            <title id="hero-art-title">A floor plan with a heat gradient around a single access point</title>
+            <defs>
+              <radialGradient id="heatA" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#35e0c8" stop-opacity="0.55"/>
+                <stop offset="45%" stop-color="#35e0c8" stop-opacity="0.22"/>
+                <stop offset="100%" stop-color="#35e0c8" stop-opacity="0"/>
+              </radialGradient>
+              <radialGradient id="heatB" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#7dd3fc" stop-opacity="0.32"/>
+                <stop offset="100%" stop-color="#7dd3fc" stop-opacity="0"/>
+              </radialGradient>
+              <pattern id="grid" width="17" height="17" patternUnits="userSpaceOnUse">
+                <path d="M17 0H0V17" fill="none" stroke="#1d2b3a" stroke-width="0.7"/>
+              </pattern>
+            </defs>
+            <rect x="0" y="0" width="340" height="260" fill="#080d12"/>
+            <rect x="0" y="0" width="340" height="260" fill="url(#grid)"/>
+            <circle cx="150" cy="120" r="105" fill="url(#heatA)"/>
+            <circle cx="245" cy="190" r="80" fill="url(#heatB)"/>
+            <g stroke="#4b6379" stroke-width="2.4" fill="none" stroke-linejoin="round">
+              <path d="M40 40h150v70h110v110H40z"/>
+              <path d="M40 110h60"/>
+              <path d="M190 110v110"/>
+              <path d="M100 110v110"/>
+              <path d="M100 165h90"/>
+            </g>
+            <g fill="#9fb3c6" font-family="ui-monospace, monospace" font-size="8.5" letter-spacing="0.6">
+              <text x="52" y="70">LIVING</text>
+              <text x="110" y="160">HALL</text>
+              <text x="205" y="140">KITCHEN</text>
+              <text x="46" y="200">BEDROOM</text>
+            </g>
+            <g transform="translate(150 120)">
+              <circle r="15" fill="#0e1721" stroke="#35e0c8" stroke-width="1.6"/>
+              <path d="M-6 -2a8.5 8.5 0 0 1 12 0" fill="none" stroke="#35e0c8" stroke-width="1.8" stroke-linecap="round"/>
+              <path d="M-3 2a4.2 4.2 0 0 1 6 0" fill="none" stroke="#35e0c8" stroke-width="1.8" stroke-linecap="round"/>
+              <circle r="1.4" cy="5" fill="#35e0c8"/>
+            </g>
+          </svg>
+        </figure>
+      </section>
+
+      <h2 id="what-you-get">What you get</h2>
+
+      <div class="callout limit">
+        <p class="callout-title">v0.1 is a scaffold — read this first</p>
+        <p>Working today: the installer, the first-run wizard, 3D model import through <code>modelkit</code>, node pairing, reading ingest and the 3D viewer. <strong>Planned, not built:</strong> walk-and-tap survey runs, heatmaps, propagation calibration, live position, UniFi controller polling and the tuning engine. Pages about those features say so at the top; nothing here promises them in v0.1.</p>
+      </div>
+
+      <div class="grid cards">
+        <div class="card">
+          <span class="card-kicker">01 · map</span>
+          <span class="card-title">Your real floor plan</span>
+          <p>Upload a GLB, glTF, OBJ or Polycam export. The importer detects floors and extracts wall lines automatically; the in-browser wall confirm editor is planned.</p>
+        </div>
+        <div class="card">
+          <span class="card-kicker">02 · measure</span>
+          <span class="card-title">Walk-and-tap surveying</span>
+          <p>A laptop agent, an Android node or an ESP32 can feed the same reading schema today. The tap-to-place walking screen and 15-second samples are <strong>planned</strong>.</p>
+        </div>
+        <div class="card">
+          <span class="card-kicker">03 · model</span>
+          <span class="card-title">Maps you can trust</span>
+          <p>Planned: IDW and kriging maps of what you measured, plus a log-distance model with wall losses, calibrated against your data and scored on held-out points.</p>
+        </div>
+        <div class="card">
+          <span class="card-kicker">04 · tune</span>
+          <span class="card-title">Suggestions, not surprises</span>
+          <p>Planned: rule-based channel and power recommendations with dry-run by default, one change at a time and rollback if anything gets worse. v0.1 writes nothing to an AP.</p>
+        </div>
+      </div>
+
+      <h2 id="screens">A look at it</h2>
+      <p>These are layout placeholders until the v0.1 screenshots are captured from a clean install. Each one shows the same three-pane layout: floors on the left, 3D model in the middle, numbers on the right.</p>
+      <div class="shots">
+        <div class="shot" role="img" aria-label="Screenshot placeholder: 3D viewer with a blended heatmap on a two-floor model">
+          <div class="shot-body">
+            <div class="shot-line w80"></div>
+            <div class="shot-line w60 dim"></div>
+            <div class="shot-line w40"></div>
+          </div>
+          <span class="shot-caption">viewer · blended heatmap</span>
+        </div>
+        <div class="shot" role="img" aria-label="Screenshot placeholder: propagation model view with per-wall losses">
+          <div class="shot-body">
+            <div class="shot-line w60"></div>
+            <div class="shot-line w80 dim"></div>
+            <div class="shot-line w40 dim"></div>
+          </div>
+          <span class="shot-caption">model · wall losses</span>
+        </div>
+        <div class="shot" role="img" aria-label="Screenshot placeholder: live position estimate on the floor plan">
+          <div class="shot-body">
+            <div class="shot-line w40"></div>
+            <div class="shot-line w80"></div>
+            <div class="shot-line w60 dim"></div>
+          </div>
+          <span class="shot-caption">live · position estimate</span>
+        </div>
+      </div>
+
+      <h2 id="three-commands">From zero to a first run</h2>
+      <p>The installer is one command on a Linux box on the same network as your access points. It needs no cloud account, no DNS and no open ports beyond the one you choose.</p>
+<pre><code class="language-bash">git clone https://github.com/jpullen724-stack/wifi-survey.git
+cd wifi-survey
+less installer/install.sh     # read it before you run it
+sudo installer/install.sh     # installs to /opt/wifi-survey, defaults to port 8800
+</code></pre>
+      <p>When it finishes, open <code>http://survey.local:8800</code>, paste the viewer token it printed, and follow the <a href="quickstart.html">quickstart</a>. In v0.1 that gets you an imported floor plan and a paired node posting readings; the heatmap arrives with the survey engine.</p>
+
+      <div class="callout limit">
+        <p class="callout-title">Not supported yet</p>
+        <p>Windows and macOS server installs, cloud sync, multi-site management and automatic AP discovery without credentials. The scanner agents run on Linux, Android/Termux and ESP32 only — see <a href="scanner-nodes.html">Scanner nodes</a> for the exact capability of each.</p>
+      </div>
+
+      <h2 id="honest">What this tool is honest about</h2>
+      <p>Wi-Fi is physics plus a lot of firmware quirks. A survey point is a measurement at one spot and one moment; a heatmap is an interpolation between those spots, not a photograph of your radio field. The model is calibrated to your building and reports its own held-out error — typically 4–7 dB in a house with drywall and a few brick walls. Position estimates land within about 2–4 m when you have taken 10–15 points per floor, and the UI says "cannot estimate" instead of guessing when the fingerprint is too far from anything it has seen. All of that is explained in <a href="concepts.html">Concepts</a>.</p>
+
+      <h2 id="where-next">Where to go next</h2>
+      <div class="grid cards">
+        <a class="card" href="install.html">
+          <span class="card-title">Install →</span>
+          <p>Supported distros, Docker, port and mDNS choices, uninstall.</p>
+        </a>
+        <a class="card" href="model-import.html">
+          <span class="card-title">Import your house →</span>
+          <p>Polycam room mode vs raw scans, floor detection and the confirm list.</p>
+        </a>
+        <a class="card" href="heatmaps.html">
+          <span class="card-title">Read a heatmap →</span>
+          <p>IDW vs kriging, per-AP and gap views, what a sticky client looks like.</p>
+        </a>
+        <a class="card" href="tuning.html">
+          <span class="card-title">Tune safely →</span>
+          <p>Guardrails, dry-run, cooldowns and rollback before anything changes.</p>
+        </a>
+        <a class="card" href="faq.html">
+          <span class="card-title">Questions →</span>
+          <p>Short answers on hardware, data, accuracy and running it day to day.</p>
+        </a>
+      </div>
+
+      <div class="callout note">
+        <p class="callout-title">Offline by design</p>
+        <p>This documentation site is plain static HTML with no build step, no CDN and no analytics. It works from a USB stick, a repo subpath or a local web server. Search runs entirely in your browser against a generated <code>search-index.json</code>.</p>
+      </div>
+
+    </article>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span>Wi-Fi Survey v0.1 · public documentation</span>
+  <span class="spacer"></span>
+  <a href="privacy.html">Privacy</a>
+  <a href="contributing.html">Contributing</a>
+  <a href="changelog.html">Changelog</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

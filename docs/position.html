@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live position — Wi-Fi Survey docs</title>
+<meta name="description" content="Turn a Wi-Fi fingerprint into an x, y and floor estimate: k-nearest-neighbour matching, floor-first classification, smoothing, accuracy figures and the position API.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body data-page="position">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle navigation">☰ <span>Menu</span></button>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="brand-tag">docs</span></a>
+  <div class="search" role="search">
+    <input id="searchInput" type="search" placeholder="Search docs…  ( / )" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <noscript>
+      <div class="nav-group">
+        <p class="nav-group-title">Chapters</p>
+        <ul class="nav-list">
+          <li><a class="nav-link" href="index.html">Overview</a></li>
+          <li><a class="nav-link" href="install.html">Install</a></li>
+          <li><a class="nav-link" href="quickstart.html">Quickstart</a></li>
+          <li><a class="nav-link" href="concepts.html">Concepts</a></li>
+          <li><a class="nav-link" href="scanner-nodes.html">Scanner nodes</a></li>
+          <li><a class="nav-link" href="model-import.html">3D model import</a></li>
+          <li><a class="nav-link" href="survey.html">Running a survey</a></li>
+          <li><a class="nav-link" href="heatmaps.html">Heatmaps</a></li>
+          <li><a class="nav-link" href="propagation-model.html">Propagation model</a></li>
+          <li><a class="nav-link" href="position.html">Live position</a></li>
+          <li><a class="nav-link" href="unifi.html">UniFi integration</a></li>
+          <li><a class="nav-link" href="tuning.html">Tuning recommendations</a></li>
+          <li><a class="nav-link" href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a class="nav-link" href="faq.html">FAQ</a></li>
+          <li><a class="nav-link" href="privacy.html">Privacy</a></li>
+          <li><a class="nav-link" href="contributing.html">Contributing</a></li>
+          <li><a class="nav-link" href="changelog.html">Changelog</a></li>
+        </ul>
+        <p class="nojs-note">JavaScript is off: this list is the full chapter index, but in-page search, the table of contents and the copy buttons are unavailable.</p>
+      </div>
+    </noscript>
+  </aside>
+
+  <main class="content" id="main">
+    <article>
+
+      <h1>Live position</h1>
+      <p class="lede">Every survey point you collect is also a fingerprint: a list of which access points were audible there and how strong each one was. Live position matches a fresh scan against those stored fingerprints and returns a coordinate on your floor plan — no GPS, no beacons, no extra hardware.</p>
+      <p class="meta"><span>v0.1</span><span>~6 min read</span></p>
+
+      <div class="callout limit">
+        <p class="callout-title">Planned — not in v0.1</p>
+        <p>Live position is planned. There is no kNN fingerprint, no smoothing and no <code>/api/v1/position/*</code> endpoint in v0.1 — positions are whatever the agent sends with a reading. The API shape below is the intended contract.</p>
+      </div>
+
+      <h2 id="how">How a fingerprint becomes a coordinate</h2>
+      <p>The method is k-nearest-neighbour matching over survey points. Each stored point holds a vector of BSSID to RSSI. A new scan is compared with every point on every floor, and the closest matches vote on where you are.</p>
+      <p>Comparison happens only over BSSIDs that both sides can see. An access point the fresh scan did not hear says nothing about distance — it may be behind you, or simply below the noise floor — so it is skipped rather than treated as a very weak reading. Points that share too little with the scan are dropped for the same reason.</p>
+      <p>Floor is decided before position. The matches are grouped by floor, each group is scored by the quality of its best few members, and the winning floor is chosen first. Only then does the 2D estimate run, using the five nearest points on that floor (<code>k = 5</code>) with weights proportional to the inverse of their distance. Without that ordering, a two-storey house collapses vertically: the ceiling of one floor and the carpet of the next look almost identical from a radio point of view, and a flat 3D centroid lands somewhere in the slab.</p>
+
+      <h2 id="fingerprint">What a fingerprint contains</h2>
+      <p>A fingerprint is a map from BSSID to RSSI in dBm, one entry per radio the scanning device could hear, plus a timestamp and which band it came from. It is the same data a survey point stores, which is why position needs no separate training pass: measuring for a heatmap also builds the reference set.</p>
+      <p>Two details matter for quality. First, RSSI is what the driver reports, not a calibrated measurement — different adapters round it differently, so a fingerprint from a phone and one from a laptop are only roughly comparable. Second, a fingerprint is a snapshot: an AP that rebooted, changed channel or had its power tuned since the survey may no longer match. The API rejects fingerprints that predate the current model for exactly this reason.</p>
+
+      <h2 id="smoothing">Smoothing</h2>
+      <p>Raw kNN output jitters. Two scans taken a second apart in the same spot can match slightly different neighbours, and the estimate jumps half a metre for no physical reason. Two filters sit on the output.</p>
+      <p>An exponential moving average with <code>α = 0.35</code> blends each new estimate with the previous one, so a single odd match moves the marker only a third of the way. On top of that, a fix further than 2 m from the last one is treated as implausible and capped at a 2 m step — walking speed over one second is well under that. Updates are produced at 1 Hz, which is fast enough to follow a person and slow enough that the filter has time to do its job.</p>
+      <p>The cost is latency: after you stop moving, the marker takes a second or two to settle. That is a deliberate trade. A marker that lags slightly is more useful than one that twitches between rooms.</p>
+
+      <h2 id="accuracy">Accuracy</h2>
+      <p>Position accuracy is a function of survey density, not of the algorithm. The figures below are typical for a house with drywall partitions and a couple of APs, measured after smoothing.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Points per floor</th><th>Typical error</th><th>What it feels like</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>20–25</td><td>1.5–3 m</td><td>Correct room almost always, sometimes the right half of it</td></tr>
+            <tr><td>10–15</td><td>2–4 m</td><td>Correct room most of the time; confusion across thin walls</td></tr>
+            <tr><td>5–9</td><td>4–7 m</td><td>Correct floor, wrong room fairly often</td></tr>
+            <tr><td>Fewer than 5</td><td>Unreliable</td><td>Useful only as a rough hint, if at all</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Error is not uniform across a floor. It is worst near walls — the difference between one side of a stud wall and the other is smaller than the noise in a single RSSI reading — and worse again in stairwells and around lifts, where floors genuinely overlap and metal moves. A large open room with an AP in it is easy; a corridor of small offices is hard.</p>
+
+      <h2 id="refusals">When it says it cannot estimate</h2>
+      <p>The service refuses rather than guesses. Four conditions produce an explicit refusal:</p>
+      <ul>
+        <li><strong>Fewer than 3 shared BSSIDs</strong> between the scan and the survey. Two radios cannot separate a position on a plane, and one is a distance with no direction.</li>
+        <li><strong>The best match is too far away.</strong> If even the closest stored fingerprint sits beyond the distance threshold, the scan describes a place the survey never visited — a new room, a neighbour's flat, or a floor you have not measured.</li>
+        <li><strong>Every plausible match is on another floor, with low confidence.</strong> A single strong match on the floor above is more likely to be a reflection or a stale fingerprint than a genuine move, so the fix is rejected instead of teleporting the marker.</li>
+        <li><strong>The fingerprint predates the model.</strong> If the survey was re-imported or recalibrated after the scan was taken, the coordinates it refers to no longer mean the same thing.</li>
+      </ul>
+      <p>Each refusal carries a reason string, so the UI can show "cannot estimate: only 2 access points visible" instead of an empty marker.</p>
+
+      <h2 id="setup">Setting up for a usable fix</h2>
+      <ol class="steps">
+        <li><strong>Make sure at least two APs are visible from everywhere.</strong> Three is better. One AP gives distance but no direction, and kNN over a single BSSID cannot resolve a ring of possible positions.</li>
+        <li><strong>Survey every room you care about.</strong> Position can only return somewhere it has seen; an unsurveyed bedroom will refuse, or match the room next door.</li>
+        <li><strong>Keep the device orientation similar between survey and use.</strong> A hand on a phone or a body between laptop and AP changes RSSI by several dB.</li>
+        <li><strong>Do not survey with the laptop lid closed.</strong> The lid blocks the antennas, the whole fingerprint shifts down by 6–10 dB, and every later fix with the lid open mismatches.</li>
+        <li><strong>Re-survey after you move or retune an AP.</strong> The fingerprints describe the old radio layout until you do.</li>
+      </ol>
+
+      <h2 id="api">API</h2>
+      <p>Position is a single POST. Authentication is the usual bearer token; the prefix is <code>/api/v1</code>.</p>
+<pre><code>curl -s -X POST http://survey.local:8800/api/v1/position \
+  -H "Authorization: Bearer &lt;YOUR_TOKEN&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{"fingerprint": {"bssid-one": -54,
+                       "bssid-two": -71,
+                       "bssid-three": -68}}'</code></pre>
+      <p>A successful response returns the estimate and the evidence behind it:</p>
+<pre><code>{
+  "x": 4.82,
+  "y": 2.15,
+  "floor": 1,
+  "confidence": 0.78,
+  "nearest_points": [12, 9, 31, 7, 18]
+}</code></pre>
+      <p><code>x</code> and <code>y</code> are metres in the floor plan's own coordinate system, <code>floor</code> is the zero-based index of the level, and <code>confidence</code> is the normalised quality of the winning match set. <code>nearest_points</code> lists the survey point IDs that voted, so you can open them and see what the match was based on. When the service refuses, the response has no coordinates and carries the reason instead.</p>
+      <div class="callout note">
+        <p class="callout-title">Fingerprints stay local</p>
+        <p>Scans sent to <code>/api/v1/position</code> are matched on your server and stored with the survey they belong to, in the same SQLite database. They are not sent anywhere else, and there is no telemetry.</p>
+      </div>
+
+      <div class="callout limit">
+        <p class="callout-title">What it is not</p>
+        <p>This is not continuous background tracking. Position is computed per request from a scan you supply; nothing runs between requests, nothing records a path, and closing the page stops it. Accuracy also depends on what the scanning device can hear: a 2.4 GHz-only client sees fewer BSSIDs than a dual-band one, and fewer BSSIDs means a weaker match.</p>
+      </div>
+
+      <p>If fixes are refusing more than you expect, <a href="troubleshooting.html">Troubleshooting</a> covers the common causes, and <a href="survey.html">Running a survey</a> explains how to add points in the rooms that keep failing.</p>
+
+    </article>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span>Wi-Fi Survey v0.1 · public documentation</span>
+  <span class="spacer"></span>
+  <a href="privacy.html">Privacy</a>
+  <a href="contributing.html">Contributing</a>
+  <a href="changelog.html">Changelog</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

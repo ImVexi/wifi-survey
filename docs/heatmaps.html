@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heatmaps — Wi-Fi Survey docs</title>
+<meta name="description" content="Read Wi-Fi heatmaps properly: measured points, per-AP and strongest-AP views, the signal-gap and confidence views, IDW versus kriging, the colour scale and export.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body data-page="heatmaps">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle navigation">☰ <span>Menu</span></button>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="brand-tag">docs</span></a>
+  <div class="search" role="search">
+    <input id="searchInput" type="search" placeholder="Search docs…  ( / )" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <noscript>
+      <div class="nav-group">
+        <p class="nav-group-title">Chapters</p>
+        <ul class="nav-list">
+          <li><a class="nav-link" href="index.html">Overview</a></li>
+          <li><a class="nav-link" href="install.html">Install</a></li>
+          <li><a class="nav-link" href="quickstart.html">Quickstart</a></li>
+          <li><a class="nav-link" href="concepts.html">Concepts</a></li>
+          <li><a class="nav-link" href="scanner-nodes.html">Scanner nodes</a></li>
+          <li><a class="nav-link" href="model-import.html">3D model import</a></li>
+          <li><a class="nav-link" href="survey.html">Running a survey</a></li>
+          <li><a class="nav-link" href="heatmaps.html">Heatmaps</a></li>
+          <li><a class="nav-link" href="propagation-model.html">Propagation model</a></li>
+          <li><a class="nav-link" href="position.html">Live position</a></li>
+          <li><a class="nav-link" href="unifi.html">UniFi integration</a></li>
+          <li><a class="nav-link" href="tuning.html">Tuning recommendations</a></li>
+          <li><a class="nav-link" href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a class="nav-link" href="faq.html">FAQ</a></li>
+          <li><a class="nav-link" href="privacy.html">Privacy</a></li>
+          <li><a class="nav-link" href="contributing.html">Contributing</a></li>
+          <li><a class="nav-link" href="changelog.html">Changelog</a></li>
+        </ul>
+        <p class="nojs-note">JavaScript is off: this list is the full chapter index, but in-page search, the table of contents and the copy buttons are unavailable.</p>
+      </div>
+    </noscript>
+  </aside>
+
+  <main class="content" id="main">
+    <article>
+
+      <h1>Heatmaps</h1>
+      <p class="lede">A heatmap is not a photograph of your radio field. It is an interpolation between the points you measured, drawn over the walls of the model — useful exactly as far as you know which parts are measurement and which are arithmetic.</p>
+      <p class="meta"><span>v0.1</span><span>~7 min read</span></p>
+
+      <div class="callout limit">
+        <p class="callout-title">Planned — not in v0.1</p>
+        <p>The heatmap renderer is planned. v0.1 stores readings but does not compute IDW, kriging, signal-gap, confidence or sticky-client layers. This chapter documents the method the survey engine will use and the limits it will have to state on screen.</p>
+      </div>
+
+      <h2 id="views">Five views of the same data</h2>
+      <p>Every view below is built from one survey. The first shows the raw measurements; the rest interpolate a different quantity from them.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>View</th><th>What it shows</th><th>Good for</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Measured points only</td><td>The readings as coloured dots, no surface</td><td>Checking data before you trust any surface</td></tr>
+            <tr><td>Per-AP</td><td>Predicted RSSI for one radio at a time</td><td>Where each AP carries, and where it dies</td></tr>
+            <tr><td>Strongest AP</td><td>Which radio wins at each pixel</td><td>Roaming boundaries and AP count</td></tr>
+            <tr><td>Signal gap</td><td>Best RSSI minus second best</td><td>Where clients are likely to stick</td></tr>
+            <tr><td>Confidence</td><td>How much data supports each pixel</td><td>Knowing where the map is guessing</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The strongest-AP view is the one people screenshot, and the least reliable one to read alone: a boundary between two colours can move a metre from a single re-sample when the two APs are within a couple of dB of each other.</p>
+
+      <h2 id="idw">Inverse distance weighting</h2>
+      <p>IDW gives each pixel a weighted average of nearby samples, with weight <code>1/d²</code> — power 2 — inside an 8 m radius, and refuses to guess unless at least three samples fall in that radius. Pixels without enough support are hatched, not coloured.</p>
+      <p>The behaviour follows from the formula. At a measured point the estimate equals the measurement, so the surface passes through every dot. Between points it bows toward the nearest one, and an isolated high reading makes a small bullseye around itself: the reading is probably real, the surface around it is not.</p>
+      <p>IDW is the default because it is honest about its edges: past 8 m from the nearest sample it produces nothing rather than a plausible extrapolation.</p>
+
+      <h2 id="kriging">Kriging</h2>
+      <p>Ordinary kriging with a spherical variogram, an 8 m range and up to 24 neighbours. Rather than fixed weights, it estimates how similarity decays with distance from your own data, then solves the weights that minimise estimation variance at each pixel.</p>
+      <p>The result is smoother than IDW and free of bullseyes, because a lone reading is discounted by the variogram instead of dominating its neighbourhood. It also tolerates anisotropy — a corridor where signal decays faster along the length than across it.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th></th><th>IDW</th><th>Kriging</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Smoothness</td><td>Piecewise; bullseyes around isolated points</td><td>Smooth; peaks are shared between neighbours</td></tr>
+            <tr><td>Outside the point cloud</td><td>Flat, then no data past 8 m</td><td>Trends toward the mean; can look confident where it is not</td></tr>
+            <tr><td>Cost</td><td>Milliseconds per view</td><td>Seconds per floor; a 24-neighbour solve per pixel</td></tr>
+            <tr><td>Minimum data</td><td>3 samples in radius</td><td>~10 before the variogram means anything</td></tr>
+            <tr><td>Exact at points</td><td>Yes</td><td>Yes, by construction</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout limit">
+        <p class="callout-title">Kriging with ten points is fiction</p>
+        <p>A variogram needs enough pairs at enough separations to fit a curve rather than a line through noise. Below about ten points per floor the kriged surface looks authoritative and is mostly the variogram's default range doing the work. The tool falls back to IDW and tells you when that happens; do not override it because the smooth version looks better.</p>
+      </div>
+
+      <h2 id="gap">The signal-gap view</h2>
+      <p>For each pixel, the gap view subtracts the second-best RSSI from the best. A gap of 25 dB means one AP owns that spot. A gap of 2 dB means two APs are effectively tied, well inside the ±3 dB you should assume from any single reading.</p>
+      <p>That is the number that predicts roaming trouble. A client in a 2 dB gap area may pick either AP and will not move until the difference is large enough to overcome its own hysteresis, which is often 8–12 dB.</p>
+
+      <h2 id="confidence">Confidence</h2>
+      <p>The confidence view counts supporting samples within the 8 m radius, weights them by distance, and looks at their spread. Four points within 4 m that agree to within 3 dB is a confident pixel. One point 7 m away is not, however smooth the surface looks there.</p>
+      <p>A practical reading: green where four or more samples sit within 4 m, amber for two or three, red beyond that. Red is not an error — it is the map saying that the colour under it came from arithmetic, not from a walk. The edges of any survey are always red, which is why a "dead zone" at the far end of a floor is worth a second visit before it is worth a new access point.</p>
+
+      <h2 id="sticky">Sticky-client zones</h2>
+      <p>A sticky client holds on to an AP it can barely hear while a better one sits next to it. The survey cannot see clients, but it can show where the condition is possible: an RSSI strong enough to stay associated, at a point where the best AP is not the serving one. The gap view makes that visible as a negative gap once you subtract the client's link from the best available, and as a small best-minus-second number overall.</p>
+      <p>In the per-AP view this looks like a tongue of one AP's colour reaching across a doorway or down a corridor into another AP's area. In the gap view the same lobe is the colour that means "wrong AP wins here". It is almost always on the far side of a wall from the AP the client joined, at the point where the client first associated and then refused to leave.</p>
+      <p>This is a client behaviour problem, not a coverage problem: the signal is fine, the device is just not looking. Adding an AP makes it worse by adding another candidate. The fix is on the controller — a minimum RSSI or band-steering threshold — and <a href="tuning.html">tuning</a> covers how to change it without dropping clients.</p>
+
+      <h2 id="reading">Reading a map in four steps</h2>
+      <ol class="steps">
+        <li><strong>Confidence first.</strong> Note the red areas and discount them. Everything else is a claim about the measured region.</li>
+        <li><strong>Check the points.</strong> Switch to measured points only. If the surface and the dots disagree, the dots are right and something is wrong with the interpolation settings.</li>
+        <li><strong>Go per-AP.</strong> Each AP should have one coherent shape. A scatter of islands usually means too few points or a reading taken through a wall the model does not have.</li>
+        <li><strong>Verify one room on foot.</strong> Pick the worst room, walk it with the phone, and compare. A map that survives that check is worth acting on.</li>
+      </ol>
+      <p>Common misreadings, in order of frequency: a red patch behind a wardrobe is real, because the wardrobe is metal-lined or full of water; a red patch in the middle of a room surrounded by good points is usually one bad reading or too few points, not a hole in coverage; a hard colour edge exactly 8 m from the nearest sample is the interpolation limit, not a wall; and a sharp change across a wall is the model's wall loss doing its job, not a measurement.</p>
+
+      <h2 id="export">Colour scale and export</h2>
+      <p>The scale runs from −30 dBm to −90 dBm in 6 dB steps, and each band means something rather than just being a colour:</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Band</th><th>What it means in practice</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>−30 to −50</td><td>Excellent. Close to the AP; rates will be limited by the client, not the link</td></tr>
+            <tr><td>−50 to −60</td><td>Good. Video calls and large transfers are comfortable</td></tr>
+            <tr><td>−60 to −70</td><td>Usable. Fine for browsing, marginal for sustained throughput</td></tr>
+            <tr><td>−70 to −80</td><td>Weak. Retries climb; roaming should have happened already</td></tr>
+            <tr><td>Below −80</td><td>Nominal only. Association may succeed; nothing else will</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The scale is configurable per survey — bounds, step and palette — in the map settings panel. Two maps are comparable only at the same scale, which is why the legend is drawn into every export.</p>
+      <p>Export gives a PNG of the current view with the legend at screen resolution, and a CSV of the measured points: one row per BSSID per sample.</p>
+
+<pre><code class="language-bash">ts,node_id,bssid,ssid,x,y,floor,rssi
+2026-03-14T18:22:05Z,node-laptop-01,bssid-one,example,4.10,2.70,0,-58
+2026-03-14T18:22:05Z,node-laptop-01,bssid-two,example,4.10,2.70,0,-71
+</code></pre>
+
+      <p>There is no GeoJSON export in v0.1, because the model's coordinates are local to the building and carry no georeference to attach them to.</p>
+
+      <div class="callout warn">
+        <p class="callout-title">The map is only as good as the walk</p>
+        <p>Two floors with the same plan and different point layouts produce maps that look equally convincing and disagree by 10 dB in the corners. Before comparing two surveys, compare their point counts and their confidence views; if either differs, you are comparing fieldwork, not Wi-Fi.</p>
+      </div>
+
+      <p>Next: the <a href="propagation-model.html">propagation model</a> that predicts between and beyond these points, or <a href="position.html">position estimates</a> built from the same fingerprints.</p>
+
+    </article>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span>Wi-Fi Survey v0.1 · public documentation</span>
+  <span class="spacer"></span>
+  <a href="privacy.html">Privacy</a>
+  <a href="contributing.html">Contributing</a>
+  <a href="changelog.html">Changelog</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

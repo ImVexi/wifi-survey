@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Propagation model — Wi-Fi Survey docs</title>
+<meta name="description" content="How Wi-Fi Survey estimates signal where you never measured: log-distance path loss, per-material wall losses, least-squares calibration and a held-out error score.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body data-page="propagation-model">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle navigation">☰ <span>Menu</span></button>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="brand-tag">docs</span></a>
+  <div class="search" role="search">
+    <input id="searchInput" type="search" placeholder="Search docs…  ( / )" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <noscript>
+      <div class="nav-group">
+        <p class="nav-group-title">Chapters</p>
+        <ul class="nav-list">
+          <li><a class="nav-link" href="index.html">Overview</a></li>
+          <li><a class="nav-link" href="install.html">Install</a></li>
+          <li><a class="nav-link" href="quickstart.html">Quickstart</a></li>
+          <li><a class="nav-link" href="concepts.html">Concepts</a></li>
+          <li><a class="nav-link" href="scanner-nodes.html">Scanner nodes</a></li>
+          <li><a class="nav-link" href="model-import.html">3D model import</a></li>
+          <li><a class="nav-link" href="survey.html">Running a survey</a></li>
+          <li><a class="nav-link" href="heatmaps.html">Heatmaps</a></li>
+          <li><a class="nav-link" href="propagation-model.html">Propagation model</a></li>
+          <li><a class="nav-link" href="position.html">Live position</a></li>
+          <li><a class="nav-link" href="unifi.html">UniFi integration</a></li>
+          <li><a class="nav-link" href="tuning.html">Tuning recommendations</a></li>
+          <li><a class="nav-link" href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a class="nav-link" href="faq.html">FAQ</a></li>
+          <li><a class="nav-link" href="privacy.html">Privacy</a></li>
+          <li><a class="nav-link" href="contributing.html">Contributing</a></li>
+          <li><a class="nav-link" href="changelog.html">Changelog</a></li>
+        </ul>
+        <p class="nojs-note">JavaScript is off: this list is the full chapter index, but in-page search, the table of contents and the copy buttons are unavailable.</p>
+      </div>
+    </noscript>
+  </aside>
+
+  <main class="content" id="main">
+    <article>
+
+      <h1>Propagation model</h1>
+      <p class="lede">A heatmap only knows where you walked. The model fills in the rest: it uses your building's geometry, the materials between each access point and each point, and the survey points you collected, to estimate signal anywhere on the plan.</p>
+      <p class="meta"><span>v0.1</span><span>~6 min read</span></p>
+
+      <div class="callout limit">
+        <p class="callout-title">Planned — not in v0.1</p>
+        <p>Propagation modelling and calibration are planned. v0.1 has no path-loss fit, no wall multipliers, no held-out RMSE and no what-if preview. The chapter describes the model the release will fit once survey data exists.</p>
+      </div>
+
+      <h2 id="model">An estimate that works where you did not measure</h2>
+      <p>A survey point is one measurement, at one spot, at one moment. You will visit tens of them; the floor has hundreds. The model sits between them — a physical calculation, not an interpolation — which is why it can answer what a heatmap cannot: what if I move this access point two metres left, or add a third one upstairs?</p>
+      <p>It is a log-distance path-loss model with explicit wall losses.</p>
+<pre><code>PL(d) = PL(1 m) + 10 · n · log10(d) + Σ (L_i × k_i)
+
+PL(1 m) = 40.2 dB   at 2.4 GHz
+PL(1 m) = 46.4 dB   at 5 GHz
+n       = 2.7       default, clamped to 2.0 – 4.0</code></pre>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Symbol</th><th>Meaning</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>PL(1 m)</code></td><td>Reference loss at one metre</td><td>40.2 dB at 2.4 GHz, 46.4 at 5 GHz</td></tr>
+            <tr><td><code>n</code></td><td>Path-loss exponent</td><td>2.7 by default, clamped 2.0–4.0</td></tr>
+            <tr><td><code>d</code></td><td>Distance from the AP in metres</td><td>Path length through the mesh</td></tr>
+            <tr><td><code>L_i</code></td><td>Loss of material <code>i</code></td><td>See the <a href="#materials">materials table</a></td></tr>
+            <tr><td><code>k_i</code></td><td>Crossings of material <code>i</code></td><td>Counted along the chosen path</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The exponent sets how fast signal falls with distance. In free space (<code>n = 2</code>) each doubling costs 6 dB; at the default 2.7, about 8.1 dB — close to the 8–9 dB a house with internal walls shows. Calibration adjusts it first.</p>
+
+      <h2 id="walls">Walls, doorways and the path search</h2>
+      <p>The obvious implementation — count the walls a straight line from AP to receiver crosses — is wrong often enough to matter. The model builds a 2D navigation mesh per floor instead: one node per room, one edge per doorway, then an A* search from the AP's room to the room being evaluated. Mesh edges come from the walls you confirmed during <a href="model-import.html">model import</a>, so a missing wall makes every path through it free.</p>
+      <p>Each edge costs the distance loss for its segment plus the loss of the boundary it crosses. A doorway edge costs 2 dB whatever the wall around it is made of: a path from the hallway into the kitchen through an open door should not pay the 10 dB of the brick wall the door sits in, and A* routes through the cheaper opening.</p>
+      <p>A straight-line count also fails because a diagonal path can cross the same wall twice: a wall down the middle of a floor, a corridor that doubles back, an L-shaped room. Counting unique surfaces undercounts; counting crossings on the real path does not.</p>
+      <h2 id="calibration">Calibration</h2>
+      <p>Three things are fitted: the exponent <code>n</code>, a multiplier per material, and a transmit-power offset per access point. The offset absorbs the fact that two APs at the same configured power rarely radiate the same amount.</p>
+      <p>The fit is ordinary least squares over every survey point, minimising the squared difference between predicted and measured RSSI. Multipliers are clamped to 0.5–1.5 so a thin data set cannot turn drywall into lead, and <code>n</code> to 2.0–4.0. A good fit leaves residuals scattered either side of zero, no room consistently 10 dB off, and a held-out error of 4–7 dB.</p>
+      <p>Overfitting is real on small surveys: below roughly 15 points per band there is more freedom in the parameters than data to constrain them, and the fit starts explaining noise. The UI marks such a fit unreliable and holds parameters near their defaults; twenty to twenty-five points per floor is where it becomes worth trusting.</p>
+
+      <h2 id="held-out">Held-out error</h2>
+      <p>A model scored on its own training points always looks good. Wi-Fi Survey reports 5-fold cross-validation: points are split into five groups, the model is fitted on four and scored on the fifth, and the rotation repeats until every point has been predicted by a model that never saw it. RMSE and MAE are both shown — RMSE punishes the occasional large miss, MAE describes the typical one.</p>
+      <p>An RMSE of 4 dB means the model is usually within half a wall of the truth: good enough to judge coverage shape and compare placements. At 8 dB it is guessing — trust the measured heatmap and add points before concluding anything. The score is broken down per band; 5 GHz is more directional and more absorbed, and usually scores worse.</p>
+      <p>It sits next to the map, not buried in a settings panel, because it is the confidence interval for everything else on screen.</p>
+
+      <h2 id="residuals">Residual correction</h2>
+      <p>After the global fit there is always structure left in the error. The model calls a partition drywall at 3 dB; the partition has metal studs and a foil facing, so every path through it is 6 dB optimistic. No global parameter can fix that without breaking every other wall.</p>
+      <p>So the leftover per-point error is smoothed into a bias surface with inverse-distance weighting at a 6 m radius and added back on top. It varies smoothly across the floor and per AP: near the metal-stud wall it pushes predictions down, in the open hallway it does nothing. It absorbs what the material list cannot know — foil-backed insulation, a chimney breast, a steel beam, a metal door frame.</p>
+      <p>What it cannot fix is bad geometry. An AP drawn three metres from where it really is produces not a smooth bias but a wrong distance, and smoothing that gives a plausible surface that is wrong in the same way. Fix the geometry, then recalibrate.</p>
+
+      <h2 id="what-if">What-if previews</h2>
+      <p>With a calibrated model you can change the plan without touching anything physical; the preview recomputes the floor in a second or two.</p>
+      <ul>
+        <li><strong>Move an AP</strong> — every distance and wall crossing is recalculated.</li>
+        <li><strong>Add an AP</strong> — combined with the existing radios by the same per-band rules as a survey.</li>
+        <li><strong>Change power</strong> — shifts that AP's offset, moving its footprint up or down.</li>
+        <li><strong>Change channel</strong> — switches reference curve and wall losses to the other band.</li>
+      </ul>
+      <p>Every preview is labelled <span class="badge warn">model, not measured</span> and drawn in a different ramp from a measured heatmap. Pin two scenarios to compare them side by side, with a delta view showing where coverage improves and degrades. It is still an estimate, so the step after a promising preview is to move the AP and survey again.</p>
+
+      <h2 id="materials">Materials and their losses</h2>
+      <p>These are the v0.1 defaults; each is editable per building and scaled by the calibrated multiplier, which stays within 0.5–1.5.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Material</th><th>Loss</th><th>Typical construction</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Drywall</td><td>3 dB</td><td>Plasterboard on studs, internal partition</td></tr>
+            <tr><td>Brick</td><td>10 dB</td><td>Single-leaf masonry, inside or outside</td></tr>
+            <tr><td>Concrete</td><td>15 dB</td><td>Reinforced wall, floor slab, structure</td></tr>
+            <tr><td>Glass</td><td>2 dB</td><td>Window glazing, single or double pane</td></tr>
+            <tr><td>Wood door</td><td>3 dB</td><td>Closed internal door, hollow or solid core</td></tr>
+            <tr><td>Metal</td><td>20 dB</td><td>Steel door, metal cabinet, ductwork, radiator panel</td></tr>
+            <tr><td>Railing</td><td>2 dB</td><td>Stair or balcony balustrade</td></tr>
+            <tr><td>Doorway</td><td>2 dB</td><td>Open passage — used instead of the wall value</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The doorway row surprises people: walking through an opening costs 2 dB whether the surrounding wall is plasterboard or brick. That is a simplification, since a thick stone opening attenuates more, but closer to the truth than charging the full wall loss.</p>
+
+      <h2 id="limits">What the model cannot see</h2>
+      <p>The model knows walls and distance. It does not know furniture — a full bookshelf or tiled bathroom will surprise it — or people, and a room with thirty of them is several dB worse than the empty one you surveyed. It treats each AP as a single radiator, so MIMO, beamforming and antenna downtilt are invisible. It has no notion of interference or noise floor, so it can promise coverage where the real problem is a neighbour's network. There is no 6 GHz support.</p>
+      <div class="callout limit">
+        <p class="callout-title">Model, not measurement</p>
+        <p>A preview says what the calibrated model expects after a change, not what your hardware will do: antenna patterns, firmware power tables and interference sit outside the model. Use it to rule options out, then measure what you keep. Preview numbers are estimates, not survey results.</p>
+      </div>
+      <p>If you need certainty about a corner, put a survey point there; the model exists to tell you which corners are worth walking to. See <a href="heatmaps.html">Heatmaps</a> for the measured side and <a href="position.html">Live position</a> for what the same fingerprints do once collected.</p>
+
+    </article>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span>Wi-Fi Survey v0.1 · public documentation</span>
+  <span class="spacer"></span>
+  <a href="privacy.html">Privacy</a>
+  <a href="contributing.html">Contributing</a>
+  <a href="changelog.html">Changelog</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D model import — Wi-Fi Survey docs</title>
+<meta name="description" content="Turn a GLB, glTF, OBJ or Polycam scan into a scaled floor plan: unit and up-axis checks, floor detection, wall extraction, the confirm list and wall materials.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body data-page="model-import">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle navigation">☰ <span>Menu</span></button>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="brand-tag">docs</span></a>
+  <div class="search" role="search">
+    <input id="searchInput" type="search" placeholder="Search docs…  ( / )" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <noscript>
+      <div class="nav-group">
+        <p class="nav-group-title">Chapters</p>
+        <ul class="nav-list">
+          <li><a class="nav-link" href="index.html">Overview</a></li>
+          <li><a class="nav-link" href="install.html">Install</a></li>
+          <li><a class="nav-link" href="quickstart.html">Quickstart</a></li>
+          <li><a class="nav-link" href="concepts.html">Concepts</a></li>
+          <li><a class="nav-link" href="scanner-nodes.html">Scanner nodes</a></li>
+          <li><a class="nav-link" href="model-import.html">3D model import</a></li>
+          <li><a class="nav-link" href="survey.html">Running a survey</a></li>
+          <li><a class="nav-link" href="heatmaps.html">Heatmaps</a></li>
+          <li><a class="nav-link" href="propagation-model.html">Propagation model</a></li>
+          <li><a class="nav-link" href="position.html">Live position</a></li>
+          <li><a class="nav-link" href="unifi.html">UniFi integration</a></li>
+          <li><a class="nav-link" href="tuning.html">Tuning recommendations</a></li>
+          <li><a class="nav-link" href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a class="nav-link" href="faq.html">FAQ</a></li>
+          <li><a class="nav-link" href="privacy.html">Privacy</a></li>
+          <li><a class="nav-link" href="contributing.html">Contributing</a></li>
+          <li><a class="nav-link" href="changelog.html">Changelog</a></li>
+        </ul>
+        <p class="nojs-note">JavaScript is off: this list is the full chapter index, but in-page search, the table of contents and the copy buttons are unavailable.</p>
+      </div>
+    </noscript>
+  </aside>
+
+  <main class="content" id="main">
+    <article>
+
+      <h1>3D model import</h1>
+      <p class="lede">Signal loss is mostly about what the path crosses. Import turns a scan into scaled floors, wall segments and material classes, so the model can charge a loss for every wall on the path.</p>
+      <p class="meta"><span>v0.1</span><span>~8 min read</span></p>
+
+      <div class="callout limit">
+        <p class="callout-title">Partly planned — what v0.1 does</p>
+        <p>In v0.1 the server accepts a <code>.glb</code>/<code>.gltf</code>/<code>.obj</code>, detects floors, extracts and regularises walls, and writes a rebuilt model, floor plans and metadata through the local <code>modelkit</code> pipeline. Planned and not built: the semantic-node path, add-on scan merging with 2D chamfer plus ICP and a fit score, and the in-browser confirm, label and material editors. Where this page relies on those, it describes the intended behaviour.</p>
+      </div>
+
+      <h2 id="formats">Why geometry matters</h2>
+      <p>A survey without a model gives you dots: measured RSSI where you stood. Between them sits interpolation, and beyond them the log-distance model:</p>
+      <p><code>PL(d) = PL(1m) + 10·n·log10(d) + Σ wall losses</code></p>
+      <p>The wall term is why import matters. Two rooms the same distance from an AP differ by 15 dB if one is brick and the other plasterboard; wrong walls still fit your measured points and lie between them.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Format</th><th>What it is</th><th>Notes</th><th>Limit</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>.glb</code></td>
+              <td>Single binary container with geometry, materials and textures</td>
+              <td>Recommended. Self-contained; keeps unit metadata</td>
+              <td rowspan="2">150 MB upload, no explicit triangle cap</td>
+            </tr>
+            <tr>
+              <td><code>.gltf</code> + <code>.bin</code> + textures</td>
+              <td>JSON scene graph with an external buffer and image files</td>
+              <td>A lone <code>.gltf</code> loses its vertex data; archives are not unpacked in v0.1</td>
+            </tr>
+            <tr>
+              <td><code>.obj</code> + <code>.mtl</code></td>
+              <td>Plain-text mesh with a companion list of material names</td>
+              <td>Usually Z-up and always unitless</td>
+              <td>150 MB upload</td>
+            </tr>
+            <tr>
+              <td>Polycam room mode</td>
+              <td>One room per export, axis-aligned and scaled</td>
+              <td>Best starting point. Export as GLB and import rooms one at a time</td>
+              <td>One room per file</td>
+            </tr>
+            <tr>
+              <td>Polycam raw</td>
+              <td>Full photogrammetry mesh, furniture and ceiling included</td>
+              <td>Needs decimation to a GLB first; raw ZIP exports are <strong>planned</strong>, not accepted in v0.1</td>
+              <td>Usually over the cap</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Files are checked before parsing: extension, then size against a 150 MB cap. A rejected file names the limit and writes nothing. The derived model lands in <code>/var/lib/wifisurvey/models/</code>.</p>
+
+      <h2 id="pipeline">The import pipeline</h2>
+      <p>Six stages are automatic. The seventh is you.</p>
+
+      <ol class="steps">
+        <li><strong>Validate.</strong> Container, triangle count, texture size. Over-cap files are refused before the mesh expands in memory.</li>
+        <li><strong>Unit and up-axis.</strong> glTF is Y-up by specification; OBJ is usually Z-up, so everything rotates into one Z-up world. Units are explicit in glTF and absent in OBJ, so a bounding-box heuristic assumes a 2–30 m building and picks metres, centimetres or millimetres by the nearest factor of ten.</li>
+        <li><strong>Floor detection.</strong> A histogram of vertex heights, described below.</li>
+        <li><strong>Wall slice.</strong> Cut each floor between 1.1 m and 1.5 m above its plane.</li>
+        <li><strong>Line extraction.</strong> RANSAC: two points propose a line, vertices within 3 cm are inliers; the best line is kept and removed. Runs under 40 cm or 40 inliers are dropped.</li>
+        <li><strong>Regularization.</strong> Snap, merge, close, flag.</li>
+        <li><strong>Confirm.</strong> Your pass over the operation list, before anything is saved.</li>
+      </ol>
+
+<pre><code class="language-bash"># detect floors and guess units from the bounding box
+wifi-survey model import house.glb --floor auto
+
+# a mesh exported in centimetres, where the guess is wrong
+wifi-survey model import house.obj --scale 0.01
+
+# keep only the ground floor and the first floor
+wifi-survey model import house.glb --floor 0,1
+</code></pre>
+
+      <p>The CLI and the upload button run the same job. Re-importing creates a revision, and surveys keep pointing at the revision they were taken against.</p>
+
+      <h2 id="floors">Floor detection</h2>
+      <p>Floor detection is one-dimensional: vertex heights in 5 cm bins, smoothed, with significant peaks taken as storeys.</p>
+      <ul>
+        <li><strong>2.2 m minimum separation.</strong> Closer peaks merge, because a slab's top and bottom faces are two peaks, as are a floor and the ceiling above it.</li>
+        <li><strong>Split at the low point.</strong> Between accepted peaks the boundary goes at the lowest bin. Stairs smear the histogram, and the low point usually lands on the landing.</li>
+      </ul>
+      <p>Floors are numbered from the lowest up, starting at 0; nothing assumes floor 0 is ground. A mezzanine under 2.2 m merges into the floor below. Sloped ceilings give a long tail, so an attic is detected where it is walkable rather than at the ridge. Ambiguous histograms ask for <code>--floor</code>.</p>
+
+      <h2 id="cleanup">Walls and regularization</h2>
+      <p>The 1.1–1.5 m band sits above beds and desks and below most door heads. What still crosses it is a wall or something tall — a wardrobe, a kitchen run.</p>
+      <p>Raw RANSAC output is correct and unusable: fragments, drifted angles, corners missing by a hand's width. Four fixes:</p>
+      <ul>
+        <li><strong>Snap rotation</strong> within 2° to the nearest multiple of 90°.</li>
+        <li><strong>Merge collinear runs</strong> offset under 5 cm with a gap under 10 cm, so a wall broken by a door becomes two segments at the opening.</li>
+        <li><strong>Close corners</strong> within 8 cm by extending both lines to their intersection.</li>
+        <li><strong>Flag, do not fix.</strong> Stubs under 25 cm and jogs — parallel offsets under 15 cm — are marked for review.</li>
+      </ul>
+
+      <div class="callout warn">
+        <p class="callout-title">Scale errors are silent</p>
+        <p>A model imported at twice its real size puts walls twice as far away, and calibration compensates with a steeper exponent. The map still looks smooth; held-out error rises a few dB. Check one known dimension — a doorway is about 0.8 m — before accepting.</p>
+      </div>
+
+      <h2 id="confirm">The confirm list</h2>
+      <p>Nothing is written until you accept the list: one numbered row per segment, with the pending action and the reason for it.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Operation</th><th>Key</th><th>What it does</th><th>Use when</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>1</td><td>keep</td><td><span class="kbd">K</span></td><td>Accept the segment as drawn</td><td>Default</td></tr>
+            <tr><td>2</td><td>merge</td><td><span class="kbd">M</span></td><td>Join with the next collinear segment</td><td>A seam across a wide opening</td></tr>
+            <tr><td>3</td><td>delete</td><td><span class="kbd">Del</span></td><td>Remove the segment</td><td>Wardrobe, curtain, mirror</td></tr>
+            <tr><td>4</td><td>relabel</td><td><span class="kbd">R</span></td><td>Move it to another floor</td><td>Split levels, stair landings</td></tr>
+            <tr><td>5</td><td>material</td><td><span class="kbd">1</span>–<span class="kbd">7</span></td><td>Assign a material class</td><td>Exterior walls; known interior walls</td></tr>
+            <tr><td>6</td><td>extend</td><td><span class="kbd">E</span></td><td>Drag an endpoint to meet another wall</td><td>A corner gap over 8 cm</td></tr>
+            <tr><td>7</td><td>split</td><td><span class="kbd">S</span></td><td>Split the segment at the cursor</td><td>One wall, two constructions</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Arrows or <span class="kbd">Tab</span> move, <span class="kbd">Enter</span> applies, <span class="kbd">Esc</span> leaves without saving. Kept, deleted and flagged counts stay visible: 60 segments down to 12 means slow down.</p>
+      <p>Nothing is trimmed automatically. The 30 cm stub may be a chimney breast, a pier or a duct — real losses, one of them 10 dB of brick. Deleting on a heuristic would tidy the plan and degrade the model.</p>
+
+      <div class="callout limit">
+        <p class="callout-title">What the importer cannot see</p>
+        <p>No automatic furniture or glass detection. A 1.1–1.5 m slice cannot tell a window from a wall, and a scanned mirror returns a surface at the wrong depth. Delete the mirror, split the wall at the window, relabel the glass. The 250,000-triangle cap is hard: decimate before import.</p>
+      </div>
+
+      <h2 id="materials">Wall materials</h2>
+      <p>Each segment carries one material class, which sets the loss charged when a path crosses it. Loss is per crossing, not per metre, and a wall crossed twice counts twice. Calibration cannot rescue a wall that is off by 15 dB; see <a href="propagation-model.html">the propagation model</a>.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Material</th><th>Loss per crossing (dB)</th><th>Typical members</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Drywall</td><td>3</td><td>Stud partitions, plasterboard</td><td>Default interior wall; two layers is closer to 4–5</td></tr>
+            <tr><td>Brick</td><td>10</td><td>Exterior cavity, load-bearing walls</td><td>Most common unexplained 10 dB step</td></tr>
+            <tr><td>Concrete</td><td>15</td><td>Slabs, columns, stair cores</td><td>Blocks floor-to-floor paths</td></tr>
+            <tr><td>Glass</td><td>2</td><td>Single and double glazing</td><td>Low loss, unless the coating is metallised</td></tr>
+            <tr><td>Wood door</td><td>3</td><td>Hollow-core and solid doors</td><td>An open door is a gap — split the segment</td></tr>
+            <tr><td>Metal</td><td>20</td><td>Steel doors, risers, lockers</td><td>Treat as opaque</td></tr>
+            <tr><td>Railing</td><td>2</td><td>Balcony, stair railings</td><td>Low loss but frequent; it adds up</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout limit">
+        <p class="callout-title">Glass is the trap</p>
+        <p>Plain glass is nearly free, so a window looks harmless. Low-emissivity coatings attenuate 5 GHz heavily and 2.4 GHz noticeably, and no geometric scan can see them. If a room with a large modern window reads worse than predicted, relabel that segment and re-run calibration before blaming the access point.</p>
+      </div>
+
+      <h2 id="merging">Merging an add-on scan</h2>
+      <p>A room scanned later — one that was locked, a room added to the plan — arrives as a second model to be placed into the first. The merge is rigid: both scans are metric, only their origins differ.</p>
+      <p>Chamfer matching rasterizes both wall sets into a 10 cm grid and sweeps the small scan through 1° rotations, scoring each pose by mean distance from its pixels to the nearest reference wall. The best poses go to ICP, refined on endpoints, and the fit score from 0 to 1 weighs coverage against residual. Above 0.75 the merge is applied; 0.60–0.75 is proposed with a visual check; below 0.60 it is refused.</p>
+      <p>The fallback is two points: click the same two corners in each scan, far apart and on different axes, and the transform is solved from the pair. Two points on one wall leave rotation unconstrained, and 5° at 8 m is 70 cm of drift. A bad fit looks like walls doubled by 10–20 cm and doors that no longer line up — never like a crash.</p>
+
+      <h2 id="cross-floor">Cross-floor alignment</h2>
+      <p>Floors share an origin and a rotation. The position estimate returns a 3D point, and the model must know which walls a path from a first-floor AP to a ground-floor client crosses.</p>
+      <p>The automatic method matches the stairwell — the one polygon on exactly two floors — comparing centroid, area and edge count, then solving a rigid transform refined by ICP. A closed stair boxed in at slicing height defeats it, and the manual fallback takes over: two stairwell corners visible on both floors.</p>
+      <p>Unaligned floors still survey per floor; the cross-floor model and the multi-floor position estimate do not. The usual failures: a <code>.gltf</code> without its <code>.bin</code>; a raw mesh over the cap; a wrong scale so no floor clears 2.2 m; one room scanned when you expected three; a mirror wall kept by default. All are fixed here, not in the survey.</p>
+
+      <p>With the model confirmed, continue to <a href="survey.html">running a survey</a>, or start from <a href="quickstart.html">a two-room import walkthrough</a>.</p>
+
+    </article>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span>Wi-Fi Survey v0.1 · public documentation</span>
+  <span class="spacer"></span>
+  <a href="privacy.html">Privacy</a>
+  <a href="contributing.html">Contributing</a>
+  <a href="changelog.html">Changelog</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

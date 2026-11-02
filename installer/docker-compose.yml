@@ -1,0 +1,43 @@
+# Docker Compose for the Wi-Fi Survey server.
+#
+#   cd installer
+#   docker compose up -d --build
+#   docker compose logs -f            # first boot prints the viewer token
+#
+# Port 8800 is published on all interfaces so scanner nodes on the LAN can
+# post readings. Do not forward it on your router: the server speaks plain
+# HTTP and the viewer token is the only credential.
+
+services:
+  wifi-survey:
+    build:
+      context: ..
+      dockerfile: installer/Dockerfile
+    image: wifi-survey:local
+    container_name: wifi-survey
+    restart: unless-stopped
+    ports:
+      - "8800:8800"
+    environment:
+      WIFISURVEY_CONFIG: /etc/wifisurvey/config.toml
+      WIFISURVEY_DATA_DIR: /var/lib/wifisurvey
+      WIFISURVEY_HOST: 0.0.0.0
+      WIFISURVEY_PORT: "8800"
+      WIFISURVEY_TIMEZONE: UTC
+      TZ: UTC
+    volumes:
+      - ./config:/etc/wifisurvey
+      - ./data:/var/lib/wifisurvey
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import socket,sys; socket.create_connection(('127.0.0.1', 8800), 3); sys.exit(0)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # mDNS does not work from a bridged container; reach the server by IP or
+    # switch to network_mode: host and drop the ports block.
+    # network_mode: host

@@ -1,0 +1,26 @@
+[Unit]
+# Rendered by install.sh: the @-delimited BINDIR and CONFIG placeholders below
+# are substituted so a --prefix install still points at the right files.
+Description=Wi-Fi Survey Agent (scanner node)
+Documentation=https://github.com/<OWNER>/wifi-survey#agent-linux
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h
+ExecStart=@BINDIR@/wifi-survey-agent --config @CONFIG@
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=15
+# the 30 s status line and every scan log line must reach the journal immediately
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=journal
+StandardError=journal
+# the outbox is written next to the config in the user's data dir
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

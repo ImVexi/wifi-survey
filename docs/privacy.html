@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy — Wi-Fi Survey docs</title>
+<meta name="description" content="What Wi-Fi Survey stores, where it lives on disk, which network ports open, how UniFi credentials are handled, and what deleting a survey or uninstalling leaves behind.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body data-page="privacy">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle navigation">☰ <span>Menu</span></button>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="brand-tag">docs</span></a>
+  <div class="search" role="search">
+    <input id="searchInput" type="search" placeholder="Search docs…  ( / )" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <noscript>
+      <div class="nav-group">
+        <p class="nav-group-title">Chapters</p>
+        <ul class="nav-list">
+          <li><a class="nav-link" href="index.html">Overview</a></li>
+          <li><a class="nav-link" href="install.html">Install</a></li>
+          <li><a class="nav-link" href="quickstart.html">Quickstart</a></li>
+          <li><a class="nav-link" href="concepts.html">Concepts</a></li>
+          <li><a class="nav-link" href="scanner-nodes.html">Scanner nodes</a></li>
+          <li><a class="nav-link" href="model-import.html">3D model import</a></li>
+          <li><a class="nav-link" href="survey.html">Running a survey</a></li>
+          <li><a class="nav-link" href="heatmaps.html">Heatmaps</a></li>
+          <li><a class="nav-link" href="propagation-model.html">Propagation model</a></li>
+          <li><a class="nav-link" href="position.html">Live position</a></li>
+          <li><a class="nav-link" href="unifi.html">UniFi integration</a></li>
+          <li><a class="nav-link" href="tuning.html">Tuning recommendations</a></li>
+          <li><a class="nav-link" href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a class="nav-link" href="faq.html">FAQ</a></li>
+          <li><a class="nav-link" href="privacy.html">Privacy</a></li>
+          <li><a class="nav-link" href="contributing.html">Contributing</a></li>
+          <li><a class="nav-link" href="changelog.html">Changelog</a></li>
+        </ul>
+        <p class="nojs-note">JavaScript is off: this list is the full chapter index, but in-page search, the table of contents and the copy buttons are unavailable.</p>
+      </div>
+    </noscript>
+  </aside>
+
+  <main class="content" id="main">
+    <article>
+
+      <h1>Privacy</h1>
+      <p class="lede">Wi-Fi Survey is a local tool with no account, no cloud and no analytics. This page states exactly what is written to disk, what leaves the machine (nothing, by default), which ports are open, and what remains after you delete data or uninstall.</p>
+      <p class="meta"><span>v0.1</span><span>~5 min read</span></p>
+
+      <p>The short version: your survey data stays in one directory on your own disk, the server never initiates an outbound connection, and the only listener is the web port you chose. Everything below is detail on that claim.</p>
+
+      <h2 id="stored">What is stored</h2>
+      <p>All persistent state lives under <code>/var/lib/wifisurvey</code>, with configuration under <code>/etc/wifisurvey</code>. There is no second location, no cache directory outside the database, and no log shipper.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Data</th><th>Where</th><th>Why it exists</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Survey points, position and RSSI per sample</td><td><code>survey.db</code></td><td>Every heatmap, model calibration and position fingerprint is computed from these rows.</td></tr>
+            <tr><td>BSSIDs, SSIDs, band, channel and frequency</td><td><code>survey.db</code></td><td>Identifies which radio a reading belongs to, including neighbouring networks your device can see.</td></tr>
+            <tr><td>Access point names, positions, floors and radio settings</td><td><code>survey.db</code></td><td>Anchors predictions and tuning suggestions to a real device.</td></tr>
+            <tr><td>Model geometry, floor planes and wall classifications</td><td><code>models/</code></td><td>The 3D model you imported, plus the wall edits you confirmed.</td></tr>
+            <tr><td>Node registrations and tokens</td><td><code>survey.db</code></td><td>Tokens are stored hashed; the plaintext is shown once at pairing and never again.</td></tr>
+            <tr><td>UniFi credentials</td><td><code>/etc/wifisurvey/config.toml</code> (URL, username) and <code>/var/lib/wifisurvey/unifi.password</code> (mode 0600)</td><td>Stored when you enter them in the wizard. Not copied into the database, not logged.</td></tr>
+            <tr><td>Server log</td><td>systemd journal</td><td>Start-up, errors and failed requests. No request bodies, no survey readings.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Two details worth knowing. The journal records the client address of whoever used the UI at the time of an error, so a shared home will show several addresses — that is how you tell a session from a stranger on the LAN when something fails. And the stored BSSIDs include networks that are not yours, because a scan reports everything the radio hears; the section on <a href="#neighbours">neighbouring networks</a> covers what that means.</p>
+
+      <h2 id="telemetry">No telemetry</h2>
+      <p>There is no analytics, no crash reporting, no usage counter and no phone-home. The server does not check for updates at startup, and the installer does not contact anything after it has fetched its packages. There is no unique installation id, no device fingerprint and no aggregated statistics endpoint.</p>
+      <p>If an update check is ever added, it will be opt-in, it will fetch a static version file, and it will send nothing but the request itself — the version you are running would be compared locally, not reported. Until such a feature exists in a release, no part of the software makes an outbound request on its own. You can verify the absence of one with <code>ss -tunp</code> on the server while it runs: you should see the listening socket and your own client connections, nothing else.</p>
+      <p>The documentation site follows the same rule. It is static HTML with one stylesheet and one script, no fonts hosted elsewhere, no CDN and no third-party embed. Search runs in your browser against a JSON file served from the same directory.</p>
+
+      <h2 id="network">Network listeners</h2>
+      <p>The server binds <code>0.0.0.0:8800</code> so that phones and laptops on the LAN can reach it. That is the only socket it opens. There is no separate metrics port, no database listener exposed and no mDNS responder beyond the avahi advertisement for <code>survey.local</code>.</p>
+      <p>Apart from the login and setup endpoints, every API call requires <code>Authorization: Bearer &lt;YOUR TOKEN&gt;</code>. The exceptions are <code>/healthz</code>, which returns a small status object and no survey data, <code>/api/v1/auth/*</code> and <code>/api/v1/setup/*</code>, which have to be reachable before you have a session, and the pairing endpoints themselves. A node's token only permits posting readings and scans for that node; it cannot read surveys or change configuration.</p>
+      <div class="callout warn">
+        <p class="callout-title">No TLS by default</p>
+        <p>Traffic is plain HTTP, including the bearer token. Anyone who can capture packets on your LAN can read the token and replay it. Treat the LAN as the security boundary, keep the port closed at the router, and put a reverse proxy with TLS in front if you need to cross a network you do not control.</p>
+      </div>
+
+      <h2 id="unifi">UniFi integration</h2>
+      <p>The integration uses a read-only account that you create on your own controller. Controller polling is <strong>planned</strong>: in v0.1 the wizard stores the URL, site, username and password file, and makes no outbound connection. When it lands it will read the AP list, radio configuration and client associations; it will never write, never change a channel and never reboot anything. The session will be held in memory for the lifetime of the process, not written to disk.</p>
+      <p>Those credentials go to your controller and nowhere else. They are not sent to the vendor, not included in a support bundle, and not logged. Client MAC addresses are stored as observed, because correlating a device across APs is the whole point of the fingerprinting view; they are never uploaded, and they disappear when the survey is deleted. If you would rather not store MAC addresses at all, leave the integration off — manual AP placement covers everything the heatmap needs.</p>
+
+      <h2 id="browser">Browser storage</h2>
+      <p>The web UI keeps your API token in <code>localStorage</code> under a single key. There are no cookies, no session store on the server and no third-party requests: the interface loads only files from the same origin. Clearing site data logs you out and removes the token from that browser.</p>
+      <p>Because the token is in <code>localStorage</code>, any script running on that origin could read it. That is one more reason the app ships no third-party script and why the deployment sets a content security policy that forbids inline and remote scripts. If you paste the token into a different browser profile, it stays there until you clear it.</p>
+
+      <h2 id="deleting">Deleting your data</h2>
+      <p>Deletion has three levels, and each one is deliberate about scope:</p>
+      <ul>
+        <li><strong>Delete a survey</strong> — <em>planned</em>: removes its readings, positions, heatmap cache and the AP placements attached to it. The model file stays until you delete it separately.</li>
+        <li><strong>Revoke a node</strong> — kills the token immediately. Existing readings remain, still attributed to that node id.</li>
+        <li><strong>Uninstall with <code>--purge</code></strong> — removes the package, the unit file, <code>/etc/wifisurvey</code> and <code>/var/lib/wifisurvey</code>, including the database, models and token.</li>
+      </ul>
+      <p>After an uninstall with purge, nothing remains on the machine. The only copies that can exist are the ones you made yourself: a database file copied to a NAS, a CSV export in a downloads folder, a support bundle in <code>/tmp</code>. Those are outside the tool's reach and outside its responsibility.</p>
+
+      <div class="callout limit">
+        <p class="callout-title">No encryption at rest</p>
+        <p>The database and models are protected by file permissions and nothing else. Anyone with root, or with physical access to the disk, can read every reading and the UniFi credentials in <code>config.toml</code>. Full-disk encryption is your job — enable it at install time, because retrofitting it to a running system is a copy-and-reinstall exercise.</p>
+      </div>
+
+      <h2 id="neighbours">Neighbouring networks</h2>
+      <p>A Wi-Fi scan reports every BSSID the radio can hear, which on a typical street includes a dozen networks that are not yours. Those rows are stored as part of the survey because excluding them would distort the channel-occupancy view and the interference estimate. They are local data like everything else, and they are never transmitted anywhere.</p>
+      <p>If you want them out, filter at collection time rather than afterwards. <code>--bssid-filter</code> accepts a list of BSSIDs or SSIDs to drop, so points are stored clean from the start and exports do not carry your neighbours' identifiers. Filtering after the fact leaves the original rows in the database until you delete the survey.</p>
+      <p>Guest and children's networks deserve the same thought. Their BSSIDs are visible to any scanner, including a phone belonging to someone in the house, and a survey will record them like any other radio. That is a property of Wi-Fi, not of this tool: the fix is the filter above, not a setting that hides a network from passive scanning.</p>
+
+    </article>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span>Wi-Fi Survey v0.1 · public documentation</span>
+  <span class="spacer"></span>
+  <a href="privacy.html">Privacy</a>
+  <a href="contributing.html">Contributing</a>
+  <a href="changelog.html">Changelog</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

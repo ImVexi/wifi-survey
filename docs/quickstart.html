@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quickstart — Wi-Fi Survey docs</title>
+<meta name="description" content="The ten-minute path: install Wi-Fi Survey, import or draw a floor, place an access point, pair one scanner node, take five points and open your first heatmap.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body data-page="quickstart">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle navigation">☰ <span>Menu</span></button>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="brand-tag">docs</span></a>
+  <div class="search" role="search">
+    <input id="searchInput" type="search" placeholder="Search docs…  ( / )" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <noscript>
+      <div class="nav-group">
+        <p class="nav-group-title">Chapters</p>
+        <ul class="nav-list">
+          <li><a class="nav-link" href="index.html">Overview</a></li>
+          <li><a class="nav-link" href="install.html">Install</a></li>
+          <li><a class="nav-link" href="quickstart.html">Quickstart</a></li>
+          <li><a class="nav-link" href="concepts.html">Concepts</a></li>
+          <li><a class="nav-link" href="scanner-nodes.html">Scanner nodes</a></li>
+          <li><a class="nav-link" href="model-import.html">3D model import</a></li>
+          <li><a class="nav-link" href="survey.html">Running a survey</a></li>
+          <li><a class="nav-link" href="heatmaps.html">Heatmaps</a></li>
+          <li><a class="nav-link" href="propagation-model.html">Propagation model</a></li>
+          <li><a class="nav-link" href="position.html">Live position</a></li>
+          <li><a class="nav-link" href="unifi.html">UniFi integration</a></li>
+          <li><a class="nav-link" href="tuning.html">Tuning recommendations</a></li>
+          <li><a class="nav-link" href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a class="nav-link" href="faq.html">FAQ</a></li>
+          <li><a class="nav-link" href="privacy.html">Privacy</a></li>
+          <li><a class="nav-link" href="contributing.html">Contributing</a></li>
+          <li><a class="nav-link" href="changelog.html">Changelog</a></li>
+        </ul>
+        <p class="nojs-note">JavaScript is off: this list is the full chapter index, but in-page search, the table of contents and the copy buttons are unavailable.</p>
+      </div>
+    </noscript>
+  </aside>
+
+  <main class="content" id="main">
+    <article>
+
+      <h1>Quickstart</h1>
+      <p class="lede">This is the shortest path to a heatmap you can look at: one server, one floor, one access point, five measured points. It is deliberately small. The result tells you that the whole pipeline works, not whether your Wi-Fi is good — that takes a real survey, which is a longer walk.</p>
+      <p class="meta"><span>v0.1</span><span>~8 min read</span></p>
+
+      <div class="callout limit">
+        <p class="callout-title">v0.1 scope</p>
+        <p>This page describes the intended end-to-end flow. In v0.1 you can install the server, import a model, pair a node and collect readings; the walking/survey screen, the heatmap renderer and the propagation model are <strong>planned</strong> and not in this release. Steps that depend on them say so.</p>
+      </div>
+
+      <h2 id="before">Before you start</h2>
+      <p>Have these ready, or the ten minutes stretch into an evening:</p>
+      <ul>
+        <li>A Linux host with systemd and root access, on the same LAN as your access point. See <a href="install.html#requirements">Install</a> for the exact list.</li>
+        <li>The viewer token the installer prints. It is stored as <code>[security] viewer_token</code> in <code>/etc/wifisurvey/config.toml</code>.</li>
+        <li>A laptop with Wi-Fi on that LAN, or an Android phone, to act as the first scanner node.</li>
+        <li>Either a 3D model of the floor, or a rough width and depth in metres. A rectangle is a legitimate starting point.</li>
+        <li>Five to ten minutes of walking, and the knowledge of where your AP physically sits.</li>
+      </ul>
+      <p>If you do not know the AP's position, look at the label or the switch port. Guessing its corner wrong tilts every model that follows.</p>
+
+      <h2 id="path">The ten-minute path</h2>
+      <p>The five steps below are the same order the UI is arranged in: map, APs, nodes, survey, heatmap. Do not skip ahead — each step writes something the next one reads.</p>
+      <ol class="steps">
+        <li id="step-1">
+          <strong>Install the server and open the UI</strong>
+          <p>Run the installer on the host that will keep the data, then open the URL it prints and paste the token once.</p>
+<pre><code class="language-bash">git clone https://github.com/jpullen724-stack/wifi-survey.git
+cd wifi-survey
+sudo installer/install.sh
+</code></pre>
+          <p>Browse to <code>http://survey.local:8800</code>, or <code>http://&lt;SERVER_IP&gt;:8800</code> if mDNS is unavailable, and paste the token. The browser stores it and stops asking.</p>
+          <p><strong>You should see</strong> an empty dashboard: zero models, zero floors, zero nodes, and a service status line with a recent uptime.</p>
+          <p><em>If it fails:</em> the page does not load, or the token is rejected — see <a href="troubleshooting.html">Troubleshooting</a> before changing anything in the config file.</p>
+        </li>
+        <li id="step-2">
+          <strong>Import a model, or draw a rectangle</strong>
+          <p>Go to <em>Models → Import</em> and drop a <code>.glb</code>, <code>.gltf</code> or <code>.obj</code> (150 MB per file; archives are not unpacked in v0.1). If you have no scan yet, choose <em>New floor → Rectangle</em> and enter width and depth in metres.</p>
+          <p><strong>You should see</strong> the floor outline in the viewer and a confirm list of detected walls. With a rectangle there is nothing to confirm — you get four walls and a ceiling height.</p>
+          <p><em>If it fails:</em> the importer rejects the file, finds no floor, or the walls land in the wrong place — see <a href="model-import.html">3D model import</a>, or <a href="troubleshooting.html">Troubleshooting</a> for upload errors.</p>
+        </li>
+        <li id="step-3">
+          <strong>Place at least one access point</strong>
+          <p>Open <em>Access points → Add</em>. Give the AP a name, pick its band and channel, and click its real position on the floor plan. Coordinates are metres from the floor origin, so the click is the measurement.</p>
+          <p><strong>You should see</strong> an AP marker with a translucent coverage ring, and the AP in the list with a channel and a transmit power.</p>
+          <p><em>If it fails:</em> the marker will not stick to the floor, or the channel list is empty — that usually means the floor has no elevation data. See <a href="troubleshooting.html">Troubleshooting</a>.</p>
+        </li>
+        <li id="step-4">
+          <strong>Pair a node and take five points</strong>
+          <p>On the server, print a pairing code; on the scanning machine, claim it. Then post a reading from each spot you want measured — in v0.1 with the agent's fixed position setting, or by letting the node send its configured coordinates.</p>
+<pre><code class="language-bash"># on the server
+sudo -u wifisurvey -H /opt/wifi-survey/venv/bin/wifi-survey pair   # six digits, 10 minutes
+
+# on the laptop: copy the stdlib agent and pair it with that code
+./agent-linux/install.sh --server http://survey.local:8800 \
+  --pair-code 123456 --node-id laptop-hall
+</code></pre>
+          <p>Once paired, the agent scans every 10–15 s and posts each burst with the position you give it. In v0.1 the survey screen itself is not built: the server stores readings and lists recent scans, and the node shows a heartbeat under <em>Nodes</em>. The tap-to-place walking workflow is planned.</p>
+          <p><strong>You should see</strong> the node under <em>Nodes</em> with a last-seen timestamp, and readings appearing in the recent-scans list.</p>
+          <p><em>If it fails:</em> the node never appears, the code is rejected, or the sample count stays at zero — see <a href="scanner-nodes.html#pairing">pairing</a> and <a href="troubleshooting.html">Troubleshooting</a>.</p>
+        </li>
+        <li id="step-5">
+          <strong>Open the heatmap — planned</strong>
+          <p>Heatmaps (IDW, kriging, confidence and gap views) are part of the survey engine and are not in v0.1. The intended first look is: <em>Heatmaps</em>, pick the floor, pick the AP you placed, leave the method on IDW. The blended view mixes measured points with the model estimate.</p>
+          <p><strong>Target behaviour</strong> is a coloured surface that is strongest near the AP and falls off with distance, plus a coverage percentage and a legend in dBm. Read <a href="heatmaps.html">Heatmaps</a> for the method the release will use.</p>
+        </li>
+      </ol>
+
+      <h2 id="first-map">What the first map is worth</h2>
+      <p>Five points is a smoke test, not a survey. Interpolation needs neighbours on all sides of a cell; with five samples most of the floor is extrapolation, and the map will show confident-looking colour where there is almost no evidence. The coverage percentage from this run should not be quoted to anyone.</p>
+      <p>The real minimum is 10–15 points per floor, and 20–25 if you want a model that predicts rooms you did not walk through. Read <a href="survey.html">Running a survey</a> for the walking pattern that gets you there, and <a href="concepts.html#accuracy">accuracy expectations</a> for what the numbers are allowed to mean.</p>
+
+      <div class="callout limit">
+        <p class="callout-title">Known limitation</p>
+        <p>A five-point run cannot produce a calibrated propagation model. Calibration needs enough spread to fit path loss and wall multipliers, and a held-out error from five points means nothing. The model view stays empty until the run has enough points to fit.</p>
+      </div>
+
+      <h2 id="timing">How long each step actually takes</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Step</th><th>Typical time</th><th>What usually blocks you</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>1 · Install</td><td>3–5 min</td><td>Package downloads, or port 8800 already in use.</td></tr>
+            <tr><td>2 · Floor</td><td>1 min rectangle, 5–15 min scan</td><td>A model without a clear ground plane, or units in the wrong scale.</td></tr>
+            <tr><td>3 · AP</td><td>1 min</td><td>Not knowing the AP's real position or channel.</td></tr>
+            <tr><td>4 · Five points</td><td>4–6 min</td><td>Pairing code expiry, or the node's rescan cooldown slowing samples.</td></tr>
+            <tr><td>5 · Heatmap</td><td>under 1 min</td><td>Fewer than three samples on the floor.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="extend">From five points to a real survey</h2>
+      <p>Keep the same model, APs and node, and add points to the same run instead of starting over. The practical loop is: walk a room, tap, wait for the sample, repeat. Aim for a grid with points every 4–6 m and one point in every room you care about, plus one just outside each exterior wall if you want to see leakage.</p>
+      <p>Two habits make the difference between a usable map and a pretty one. First, hold the device the same way at every point — body absorption is worth several dB. Second, do not sample while walking: the 15-second window averages over motion and lands somewhere you were not standing.</p>
+      <div class="callout tip">
+        <p class="callout-title">Take a baseline first</p>
+        <p>Before you change any AP settings, finish one complete run. Tuning recommendations compare against a baseline; without one, a later "improvement" has nothing to be measured against. See <a href="tuning.html">Tuning recommendations</a>.</p>
+      </div>
+
+      <h2 id="what-next">What next</h2>
+      <div class="grid cards">
+        <a class="card" href="concepts.html">
+          <span class="card-title">Concepts →</span>
+          <p>Measured, interpolated and modelled values, and why the UI labels them differently.</p>
+        </a>
+        <a class="card" href="survey.html">
+          <span class="card-title">Running a survey →</span>
+          <p>Point counts, walking patterns, and how to resume a run without corrupting it.</p>
+        </a>
+        <a class="card" href="heatmaps.html">
+          <span class="card-title">Heatmaps →</span>
+          <p>IDW versus kriging, per-AP and gap views, and reading a sticky client.</p>
+        </a>
+        <a class="card" href="propagation-model.html">
+          <span class="card-title">Propagation model →</span>
+          <p>Calibrating path loss and wall multipliers, and judging the held-out error.</p>
+        </a>
+      </div>
+
+    </article>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span>Wi-Fi Survey v0.1 · public documentation</span>
+  <span class="spacer"></span>
+  <a href="privacy.html">Privacy</a>
+  <a href="contributing.html">Contributing</a>
+  <a href="changelog.html">Changelog</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

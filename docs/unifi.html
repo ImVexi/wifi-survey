@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UniFi integration — Wi-Fi Survey docs</title>
+<meta name="description" content="Connect a UniFi controller with a local read-only account, see which endpoints are polled and what is never read, or type AP details in by hand instead.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body data-page="unifi">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle navigation">☰ <span>Menu</span></button>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="brand-tag">docs</span></a>
+  <div class="search" role="search">
+    <input id="searchInput" type="search" placeholder="Search docs…  ( / )" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <noscript>
+      <div class="nav-group">
+        <p class="nav-group-title">Chapters</p>
+        <ul class="nav-list">
+          <li><a class="nav-link" href="index.html">Overview</a></li>
+          <li><a class="nav-link" href="install.html">Install</a></li>
+          <li><a class="nav-link" href="quickstart.html">Quickstart</a></li>
+          <li><a class="nav-link" href="concepts.html">Concepts</a></li>
+          <li><a class="nav-link" href="scanner-nodes.html">Scanner nodes</a></li>
+          <li><a class="nav-link" href="model-import.html">3D model import</a></li>
+          <li><a class="nav-link" href="survey.html">Running a survey</a></li>
+          <li><a class="nav-link" href="heatmaps.html">Heatmaps</a></li>
+          <li><a class="nav-link" href="propagation-model.html">Propagation model</a></li>
+          <li><a class="nav-link" href="position.html">Live position</a></li>
+          <li><a class="nav-link" href="unifi.html">UniFi integration</a></li>
+          <li><a class="nav-link" href="tuning.html">Tuning recommendations</a></li>
+          <li><a class="nav-link" href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a class="nav-link" href="faq.html">FAQ</a></li>
+          <li><a class="nav-link" href="privacy.html">Privacy</a></li>
+          <li><a class="nav-link" href="contributing.html">Contributing</a></li>
+          <li><a class="nav-link" href="changelog.html">Changelog</a></li>
+        </ul>
+        <p class="nojs-note">JavaScript is off: this list is the full chapter index, but in-page search, the table of contents and the copy buttons are unavailable.</p>
+      </div>
+    </noscript>
+  </aside>
+
+  <main class="content" id="main">
+    <article>
+
+      <h1>UniFi integration</h1>
+      <p class="lede">Wi-Fi Survey can read your access point inventory straight from a UniFi controller so you do not have to type in models, channels and transmit power. It is optional, it is read-only by default, and the whole feature works without it.</p>
+      <p class="meta"><span>v0.1</span><span>~5 min read</span></p>
+
+      <div class="callout limit">
+        <p class="callout-title">Planned — not in v0.1: polling</p>
+        <p>The setup wizard can store a controller URL, site name and read-only credentials (<code>POST /api/v1/setup/unifi</code>, password in <code>unifi.password</code> under the data directory, mode <code>0600</code>), and <code>/api/v1/unifi/status</code> reports what is configured. Nothing is polled yet: no AP list, channels or client data are imported, and the server makes no outbound call to the controller. Everything below describes the integration that will sit on top of those stored settings.</p>
+      </div>
+
+      <h2 id="account">Create a local read-only account</h2>
+      <p>Do not reuse your administrator account. Make a dedicated account with the smallest set of rights that still lets it list devices, and treat the password as a credential for this tool alone.</p>
+      <ol class="steps">
+        <li><strong>Settings → Admins &amp; Users → Invite Admin.</strong></li>
+        <li><strong>Choose "Local Access Only".</strong> A cloud-linked account will not authenticate against the local API the way this integration needs.</li>
+        <li><strong>Assign the Read Only role</strong> and leave every site-administration right off. Reading is all the integration does.</li>
+        <li><strong>Set a long, unique password.</strong> It is stored in a configuration file on your server, so it should not be a password you use elsewhere.</li>
+        <li><strong>Do not enable two-factor authentication on this account.</strong> 2FA breaks scripted login: the API expects a username and password and has nowhere to put a one-time code, so the poll fails on every attempt.</li>
+      </ol>
+      <p>If your controller version supports API keys, use one instead of a password and skip the 2FA problem entirely — the key is scoped to the account and can be revoked without changing anything else. Where keys are not available, the local account with 2FA disabled is the only workable option, which is why it is worth giving that account no rights beyond reading.</p>
+
+      <h2 id="connect">Point the tool at your controller</h2>
+      <p>The URL depends on what you are running. A self-hosted software controller on a Linux host normally answers on port 8443:</p>
+<pre><code>[unifi]
+host = "https://&lt;CONTROLLER&gt;:8443"
+site = "default"
+username = "wifi-survey"
+password = "..."
+insecure = false</code></pre>
+      <p>A UniFi OS console — a Dream Machine, Cloud Key or similar — serves the network application behind a prefix instead, on the standard HTTPS port, so the API path becomes <code>/proxy/network/api/...</code> rather than <code>/api/...</code>. The tool detects the prefix from the controller's response, but if you are constructing URLs by hand, that difference is the usual reason a request returns HTML instead of JSON. The site name is usually <code>default</code>; if you renamed your site, use the name shown in the controller's site switcher.</p>
+      <p>Most controllers present a self-signed certificate. There is a <code>--insecure</code> flag that disables certificate verification and lets the connection proceed, and it is genuinely risky: with verification off, anything that can intercept traffic between the server and the controller can present its own certificate, collect the login and then use the session. The better fix is to import the controller's certificate into the server's trust store and leave verification on. Use <code>--insecure</code> on a trusted LAN when you have no other option, not as a default.</p>
+      <p>Once connected, the integration polls every 60 seconds. If a poll fails — controller rebooting, network hiccup, expired session — it backs off and retries, and marks the integration <span class="badge warn">stale</span> in the UI rather than showing the last good values as if they were current.</p>
+
+      <h2 id="endpoints">What it calls</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Path</th><th>Method</th><th>Returns</th><th>Why it is read</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>/api/auth/login</code></td><td>POST</td><td>Session cookie</td><td>Authenticates the read-only account; on UniFi OS consoles it sits behind <code>/proxy/network</code></td></tr>
+            <tr><td><code>/api/s/&lt;site&gt;/stat/device</code></td><td>GET</td><td>AP inventory</td><td>Models, channels, channel widths and transmit power for every AP</td></tr>
+            <tr><td><code>/api/s/&lt;site&gt;/stat/sta</code></td><td>GET</td><td>Client list</td><td>Which client is on which AP, and its RSSI — used for sticky-client views</td></tr>
+            <tr><td><code>/api/s/&lt;site&gt;/rest/wlanconf</code></td><td>GET</td><td>Wireless network config</td><td>SSID names, bands and security mode; passwords are not returned</td></tr>
+            <tr><td><code>/api/s/&lt;site&gt;/stat/report/daily</code></td><td>GET</td><td>Daily history</td><td>Historical client counts, so a coverage problem can be matched to when it happens</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Only these five are used. The session established by the login call is kept in memory for the life of the poller and is never written to disk.</p>
+
+      <h2 id="what-is-read">What is read, and what never is</h2>
+      <p>The integration reads inventory and counters: device models, firmware versions, channels, widths, transmit power, client associations, RSSI values and SSID names. That is enough to fill in the access point list, draw the client distribution and feed the <a href="tuning.html">tuning rules</a>.</p>
+      <p>It never reads client traffic, never touches deep packet inspection data, never requests WPA passphrases or PSKs, and never writes anything. There is no code path that changes a channel, a power level or an SSID through the controller API — tuning changes, when you enable them, go through the same read-write session type but are a separate, explicitly enabled feature with their own guardrails.</p>
+      <p>If you would rather not hand over credentials at all, skip to <a href="#manual-mode">manual mode</a>. Nothing except the live client counts depends on the controller.</p>
+
+      <h2 id="privacy">Where the credentials live</h2>
+      <p>Controller credentials are stored in <code>/etc/wifisurvey/config.toml</code> with mode <code>0600</code>, owned by the service user. Nothing in that file is served over HTTP, and the API never echoes a password back. The session cookie lives in the process's memory only, so a restart means a fresh login rather than a replay of an old session.</p>
+      <p>No cloud connector is needed or used. The UniFi cloud is not contacted, the controller is reached directly on your LAN, and the integration works with a purely local account — which is the other reason to create one. Nothing about the controller leaves your network.</p>
+
+      <h2 id="manual-mode">Manual mode</h2>
+      <p>Manual mode is the default and it is not a degraded experience. You add each access point yourself: name, model, band, channel, width and transmit power. The tool uses that to place the AP on the plan, run the propagation model and evaluate tuning rules.</p>
+      <p>What you lose is only what requires live data from the controller: current client associations, per-client RSSI, and historical client counts. Everything else — heatmaps, calibration, held-out error, model previews and most of the <a href="tuning.html">recommendations</a> — works the same. If you check your controller's UI once a month and type in any changes, manual mode stays accurate enough for survey work.</p>
+
+      <h2 id="limits">Limits</h2>
+      <p>UniFi OS and the older self-hosted controller differ in URL layout, login response shape and where the network application is mounted. Both are supported, but a mixed environment may need the prefix set explicitly. Hosted and remote controllers are not supported at all: the integration expects to reach the controller directly on the LAN, and it will not tunnel through a cloud relay.</p>
+      <div class="callout limit">
+        <p class="callout-title">Not supported</p>
+        <p>Hosted or remote UniFi controllers, Omada and other controller platforms, and any write operation outside the tuning feature. UniFi firmware changes the private API without notice; when that happens the integration breaks until the parser is updated, and manual mode is the workaround. Treat this as a convenience layer, not a dependency.</p>
+      </div>
+      <p>If the connection fails, <a href="troubleshooting.html">Troubleshooting</a> lists the error strings and what each one means.</p>
+
+    </article>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span>Wi-Fi Survey v0.1 · public documentation</span>
+  <span class="spacer"></span>
+  <a href="privacy.html">Privacy</a>
+  <a href="contributing.html">Contributing</a>
+  <a href="changelog.html">Changelog</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

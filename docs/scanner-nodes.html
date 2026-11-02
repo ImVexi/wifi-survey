@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scanner nodes — Wi-Fi Survey docs</title>
+<meta name="description" content="How Wi-Fi Survey scanner nodes work: the pairing flow, the reading schema in JSON, and the Linux, Android/Termux and ESP32 agents compared on bands and accuracy.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body data-page="scanner-nodes">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle navigation">☰ <span>Menu</span></button>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="brand-tag">docs</span></a>
+  <div class="search" role="search">
+    <input id="searchInput" type="search" placeholder="Search docs…  ( / )" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <noscript>
+      <div class="nav-group">
+        <p class="nav-group-title">Chapters</p>
+        <ul class="nav-list">
+          <li><a class="nav-link" href="index.html">Overview</a></li>
+          <li><a class="nav-link" href="install.html">Install</a></li>
+          <li><a class="nav-link" href="quickstart.html">Quickstart</a></li>
+          <li><a class="nav-link" href="concepts.html">Concepts</a></li>
+          <li><a class="nav-link" href="scanner-nodes.html">Scanner nodes</a></li>
+          <li><a class="nav-link" href="model-import.html">3D model import</a></li>
+          <li><a class="nav-link" href="survey.html">Running a survey</a></li>
+          <li><a class="nav-link" href="heatmaps.html">Heatmaps</a></li>
+          <li><a class="nav-link" href="propagation-model.html">Propagation model</a></li>
+          <li><a class="nav-link" href="position.html">Live position</a></li>
+          <li><a class="nav-link" href="unifi.html">UniFi integration</a></li>
+          <li><a class="nav-link" href="tuning.html">Tuning recommendations</a></li>
+          <li><a class="nav-link" href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a class="nav-link" href="faq.html">FAQ</a></li>
+          <li><a class="nav-link" href="privacy.html">Privacy</a></li>
+          <li><a class="nav-link" href="contributing.html">Contributing</a></li>
+          <li><a class="nav-link" href="changelog.html">Changelog</a></li>
+        </ul>
+        <p class="nojs-note">JavaScript is off: this list is the full chapter index, but in-page search, the table of contents and the copy buttons are unavailable.</p>
+      </div>
+    </noscript>
+  </aside>
+
+  <main class="content" id="main">
+    <article>
+
+      <h1>Scanner nodes</h1>
+      <p class="lede">A node is anything that can scan Wi-Fi and post JSON. The server does not care whether that is a laptop on a charger, a phone in your pocket or a microcontroller taped to a wall — they all speak the same reading schema. What differs is which bands they can see and how much you should trust the number.</p>
+      <p class="meta"><span>v0.1</span><span>~10 min read</span></p>
+
+      <h2 id="pairing">Pairing a node</h2>
+      <p>A node cannot post until it holds a node token. Pairing exchanges a short, single-use code for it, so you never type the server token into a device you might lose.</p>
+      <ol class="steps">
+        <li>
+          <strong>Print a code on the server</strong>
+          <p>Run <code>sudo -u wifisurvey -H /opt/wifi-survey/venv/bin/wifi-survey pair</code>, or use the pairing screen in the UI. The server prints a six-digit code. It is valid for ten minutes, once.</p>
+        </li>
+        <li>
+          <strong>Give the node a name</strong>
+          <p>Use the room or the device — <code>laptop-hall</code>, <code>phone-bedroom</code>, <code>esp32-attic</code>. It is what you will read in the survey list later.</p>
+        </li>
+        <li>
+          <strong>Claim the code</strong>
+          <p>The agent calls <code>POST /api/v1/pair</code> with <code>code</code>, <code>node_id</code> and <code>node_type</code>. An expired or already-used code is rejected; print a new one. <code>/api/v1/pair/claim</code> is an alias for older agents, not a separate flow.</p>
+        </li>
+        <li>
+          <strong>Store the node token</strong>
+          <p>The response holds a token for that node only. It can post readings; it cannot read surveys, change AP settings or claim another code.</p>
+        </li>
+        <li>
+          <strong>Confirm the heartbeat</strong>
+          <p>The node appears under <em>Nodes</em> after its first successful post. A paired node that never posts shows as idle: check the server URL and the clock.</p>
+        </li>
+      </ol>
+      <div class="callout note">
+        <p class="callout-title">Clocks matter</p>
+        <p>Readings carry an ISO 8601 UTC timestamp from the node, not the server. A node whose clock is minutes off produces points that sort oddly in the timeline. Enable NTP on laptops and phones; on ESP32 call <code>configTime</code> first.</p>
+      </div>
+
+      <h2 id="schema">The reading schema</h2>
+      <p>One POST is one sample at one position: a node identifier, a UTC timestamp, a position on a floor, and an array of per-BSSID observations.</p>
+<pre><code class="language-bash">POST /api/v1/readings
+Authorization: Bearer &lt;NODE_TOKEN&gt;
+Content-Type: application/json
+
+{
+  "node_id": "laptop-hall",
+  "ts": "2026-02-14T19:42:07Z",
+  "position": { "x": 4.25, "y": 2.80, "floor": 0 },
+  "samples": [
+    { "bssid": "bssid-one", "ssid": "example-net", "band": "5",
+      "channel": 36, "freq_mhz": 5180, "rssi": -58 },
+    { "bssid": "bssid-two", "ssid": "example-net", "band": "2.4",
+      "channel": 6, "freq_mhz": 2437, "rssi": -67 }
+  ]
+}
+</code></pre>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>node_id</code></td><td>string</td><td>yes</td><td>Must match the node that owns the token; a mismatch is rejected.</td></tr>
+            <tr><td><code>ts</code></td><td>string</td><td>yes</td><td>ISO 8601 in UTC, with a trailing <code>Z</code>. Local time without an offset is rejected.</td></tr>
+            <tr><td><code>position.x</code></td><td>number</td><td>yes</td><td>Metres from the floor origin, along the first axis.</td></tr>
+            <tr><td><code>position.y</code></td><td>number</td><td>yes</td><td>Metres from the floor origin, along the second axis.</td></tr>
+            <tr><td><code>position.floor</code></td><td>integer</td><td>yes</td><td>Floor index as imported: <code>0</code> is the lowest floor in the model.</td></tr>
+            <tr><td><code>samples</code></td><td>array</td><td>yes</td><td>At least one entry. A sample with no BSSIDs is discarded.</td></tr>
+            <tr><td><code>samples[].bssid</code></td><td>string</td><td>yes</td><td>Lowercase, colon-separated. This is the identity used for interpolation and fingerprints.</td></tr>
+            <tr><td><code>samples[].ssid</code></td><td>string</td><td>no</td><td>Display only. Empty for hidden networks.</td></tr>
+            <tr><td><code>samples[].band</code></td><td>string</td><td>yes</td><td><code>"2.4"</code>, <code>"5"</code> or <code>"6"</code>. Used to pick the path loss constant.</td></tr>
+            <tr><td><code>samples[].channel</code></td><td>integer</td><td>yes</td><td>Primary channel number.</td></tr>
+            <tr><td><code>samples[].freq_mhz</code></td><td>integer</td><td>yes</td><td>Centre frequency; cross-checked against the channel.</td></tr>
+            <tr><td><code>samples[].rssi</code></td><td>integer</td><td>yes</td><td>dBm, negative. Values above −10 or below −100 are clamped.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Unknown fields are ignored, so an agent can add diagnostics without breaking ingest. Missing required fields return a validation error naming the path.</p>
+
+      <h2 id="linux">Linux agent</h2>
+      <p>The Linux agent is the reference implementation: one stdlib-only Python file, no package, no virtual environment. <code>agent-linux/install.sh</code> copies it to <code>~/.local/bin</code>, pairs it and optionally installs a systemd <em>user</em> unit — no root and no daemon.</p>
+<pre><code class="language-bash">git clone https://github.com/jpullen724-stack/wifi-survey.git
+cd wifi-survey
+
+# pair and start scanning
+./agent-linux/install.sh --server http://survey.local:8800 \
+  --pair-code 123456 --node-id laptop-hall --interval 10
+</code></pre>
+      <p>Run the file directly if you prefer: <code>wifi_agent.py --server-url URL --pair-code CODE --node-id NAME --scan-interval 10</code>. The token returned by pairing is saved in <code>~/.config/wifi-survey/agent.json</code> with mode <code>0600</code>; <code>--pair-only</code> stops after saving. While running, the agent serves a small status page on <code>http://127.0.0.1:8790/</code> (plus <code>/status.json</code> and <code>/healthz</code>) showing the last scan, the outbox depth and the last post result.</p>
+      <p>Under the hood it shells out to nmcli for every sample:</p>
+<pre><code class="language-bash">nmcli --terse --fields BSSID,SSID,CHAN,FREQ,SIGNAL dev wifi list
+</code></pre>
+      <p><code>SIGNAL</code> is not dBm. NetworkManager reports 0–100 %, and the agent converts it:</p>
+      <p><code>dBm ≈ −100 + 0.6 × pct</code>, clipped at −40 dBm.</p>
+      <p>The conversion is coarse: the mapping is only accurate to about ±3 dB. When the adapter exposes real dBm through <code>iw</code>, the agent uses that value instead and only falls back to nmcli percentages.</p>
+      <p>NetworkManager refuses a rescan within roughly 10 seconds. So with <code>--interval 15</code> you get a fresh scan every sample; intervals below 10 seconds silently reuse the cached list.</p>
+
+      <h2 id="android">Android via Termux</h2>
+      <p>A phone is the most convenient node: you already carry it, and Termux:API gives raw scan results without root.</p>
+<pre><code class="language-bash">pkg install termux-api python
+termux-wifi-scaninfo          # JSON array of visible BSSIDs
+
+# pair with a code from the server, then sample every 30 s
+./termux_agent.sh --server http://survey.local:8800 \
+  --pair-code 123456 --node-id phone-kitchen --position 4.2,2.1,0
+</code></pre>
+      <p>You need the Termux:API app from the same source as Termux, and location permission granted to it — without it the scan list comes back empty instead of erroring. <code>--position</code> is how v0.1 records where the phone was standing: there is no tap-to-place survey screen yet.</p>
+      <p>The real constraint is throttling: recent Android versions return roughly four scans every two minutes. An agent asking every 15 seconds gets the same cached list three times out of four. Fine when you stand still for 30 seconds per point, useless for continuous monitoring.</p>
+      <div class="callout limit">
+        <p class="callout-title">Known limitation</p>
+        <p>There is no Windows or macOS agent yet — Windows can use the web UI but cannot scan. There is no iOS agent at all, since iOS does not expose scan results to apps. The ESP32 cannot see 5 GHz, so a 5 GHz-only network is invisible to it.</p>
+      </div>
+
+      <h2 id="esp32">ESP32</h2>
+      <p>An ESP32 makes a cheap fixed node: it sits in one place, scans every interval and reports on 2.4 GHz only. The sketch needs <code>WiFi.h</code>, <code>HTTPClient.h</code>, <code>Preferences.h</code> and about 120 lines.</p>
+      <p>The outline: on first boot it starts a soft AP with a captive portal asking for Wi-Fi SSID, password, server URL and node token, stores them in NVS through <code>Preferences</code>, then reboots into station mode. The loop is: scan, build the JSON, post, wait.</p>
+<pre><code class="language-bash">#include &lt;WiFi.h&gt;
+#include &lt;HTTPClient.h&gt;
+#include &lt;Preferences.h&gt;
+
+void postReading(const String &amp;body) {
+  HTTPClient http;
+  http.begin(serverUrl + "/api/v1/readings");
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Authorization", "Bearer " + nodeToken);
+  int code = http.POST(body);
+  Serial.printf("POST %d\n", code);
+  http.end();
+}
+</code></pre>
+      <p>Two details matter more than the code. The radio reports RSSI directly, with no percentage conversion, so readings are the most consistent of the three — about ±2 dB. And it cannot see 5 GHz: a 5 GHz-only network is invisible, a mixed one appears only via its 2.4 GHz BSSID.</p>
+      <p>The captive portal is the weakest part: an ESP32 has no clock until it syncs, so call <code>configTime</code> after connecting and refuse to post until the time is real — otherwise every reading says 1970.</p>
+
+      <h2 id="accuracy">Comparing the three</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Node</th><th>Bands</th><th>Source of RSSI</th><th>Typical accuracy</th><th>Cadence</th><th>Power</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Linux laptop</td><td>2.4, 5, and 6 GHz where the adapter reports it</td><td><code>iw</code> dBm when available, otherwise nmcli <code>SIGNAL</code> percentage converted</td><td>±3 dB (nmcli path); better with <code>iw</code></td><td>10–15 s, limited by the rescan cooldown</td><td>Mains; the laptop must stay awake</td></tr>
+            <tr><td>Android + Termux</td><td>2.4 and 5 GHz, sometimes 6</td><td><code>termux-wifi-scaninfo</code>, driver-reported</td><td>±3 dB or worse, OEM-dependent</td><td>~4 scans per 2 minutes</td><td>Battery; screen-off may pause scanning</td></tr>
+            <tr><td>ESP32</td><td>2.4 GHz only</td><td>Radio RSSI, no conversion</td><td>±2 dB</td><td>30 s, continuous</td><td>Under 1 W; USB or a small supply</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The accuracy column is about repeatability at a fixed spot, not agreement with a calibrated receiver. An ESP32 that reads 3 dB high everywhere still produces a correct map.</p>
+
+      <h2 id="choosing">Choosing a node</h2>
+      <p>Most people need two: a laptop for the main survey, and one fixed node for a floor that is awkward to walk twice.</p>
+      <ul>
+        <li><strong>Use a Linux laptop</strong> when you want the whole picture, including 5 GHz, and can walk with it. The only node that produces a multi-band survey in one pass.</li>
+        <li><strong>Use Android</strong> when you want to survey without a laptop, or want points at phone height and in a hand — closer to how clients are actually used.</li>
+        <li><strong>Use an ESP32</strong> when the node must stay put: a fixed monitoring point, an outbuilding, a shed. Accept that it sees only 2.4 GHz.</li>
+      </ul>
+      <p>Two rules: do not mix node types within one run — a throttling phone biases the average — and keep node names stable, since the name is what ties readings to a device afterwards.</p>
+      <p>If you must mix node types, take five points in the same spot with each and compare. A constant offset is normal; a wandering one usually means a node is throttling.</p>
+      <p>Once a node posts reliably, the next chapter is the walking itself: point counts, spacing and marking positions — see <a href="survey.html">Running a survey</a>. For post failures start with <a href="troubleshooting.html">Troubleshooting</a>, and for the numbers themselves see <a href="concepts.html#accuracy">accuracy expectations</a>.</p>
+
+    </article>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span>Wi-Fi Survey v0.1 · public documentation</span>
+  <span class="spacer"></span>
+  <a href="privacy.html">Privacy</a>
+  <a href="contributing.html">Contributing</a>
+  <a href="changelog.html">Changelog</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

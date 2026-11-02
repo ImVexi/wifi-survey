@@ -1,0 +1,1141 @@
+{
+"generated_by": "scripts/build_search_index.py",
+"entries": [
+{
+"page": "changelog.html",
+"pageTitle": "Changelog",
+"title": "Changelog",
+"anchor": "",
+"level": 1,
+"text": "Release notes for Wi-Fi Survey: what the v0.1 scaffold contains, the known limitations that ship with it, and what is planned but not yet released."
+},
+{
+"page": "changelog.html",
+"pageTitle": "Changelog",
+"title": "Unreleased",
+"anchor": "unreleased",
+"level": 2,
+"text": "Planned, not shipped Nothing in this section is in the current download. There is no branch to enable it, no hidden flag and no date. Treat it as direction, and check the release notes of an actual ve"
+},
+{
+"page": "changelog.html",
+"pageTitle": "Changelog",
+"title": "Planned",
+"anchor": "unreleased-planned",
+"level": 3,
+"text": "Survey walking: tap-to-place points, 15-second samples, pause/cancel/redo and blind scoring. Heatmaps: IDW, kriging, signal-gap, confidence and sticky-client layers, with a floor selector and per-band"
+},
+{
+"page": "changelog.html",
+"pageTitle": "Changelog",
+"title": "v0.1 — scaffold",
+"anchor": "v0-1",
+"level": 2,
+"text": "The first public release. One server process on port 8800, one SQLite database, one reading schema shared by three node types, the deterministic model-import pipeline and this documentation. No cloud"
+},
+{
+"page": "changelog.html",
+"pageTitle": "Changelog",
+"title": "Added",
+"anchor": "v0-1-added",
+"level": 3,
+"text": "Installer for Debian, Ubuntu, Fedora and Arch, plus a local Docker build. Installs to /opt/wifi-survey , keeps data in /var/lib/wifisurvey , runs as wifi-survey.service under the wifisurvey user. Conf"
+},
+{
+"page": "changelog.html",
+"pageTitle": "Changelog",
+"title": "Changed",
+"anchor": "v0-1-changed",
+"level": 3,
+"text": "Readings from all three node types use one schema, replacing the per-platform payloads used during development. Configuration, the viewer token and the pairing secret live in one config.toml ; there i"
+},
+{
+"page": "changelog.html",
+"pageTitle": "Changelog",
+"title": "Fixed",
+"anchor": "v0-1-fixed",
+"level": 3,
+"text": "Token comparison happens in constant time, and a revoked node token is rejected with 401 rather than being accepted until restart. Readings with timestamps more than 60 s away from server time are rej"
+},
+{
+"page": "changelog.html",
+"pageTitle": "Changelog",
+"title": "Known issues",
+"anchor": "v0-1-issues",
+"level": 3,
+"text": "Known issues in v0.1 No survey screen, heatmaps, propagation calibration, live position, UniFi polling or tuning engine. Readings are stored and listed; nothing models them yet. No published container"
+},
+{
+"page": "concepts.html",
+"pageTitle": "Concepts",
+"title": "Concepts",
+"anchor": "",
+"level": 1,
+"text": "The mental model behind Wi-Fi Survey: measured, interpolated and modelled values, what dBm really means, accuracy you can expect, and a plain glossary of terms."
+},
+{
+"page": "concepts.html",
+"pageTitle": "Concepts",
+"title": "From a reading to a map",
+"anchor": "pipeline",
+"level": 2,
+"text": "Every path starts with one HTTP request. A scanner node collects a 15-second burst of scans, reduces it to one value per BSSID, and posts it to POST /api/v1/readings with its node token. The server va"
+},
+{
+"page": "concepts.html",
+"pageTitle": "Concepts",
+"title": "Measured, interpolated, modelled",
+"anchor": "three-kinds",
+"level": 2,
+"text": "The viewer mixes three kinds of value, and they are not interchangeable. measured A number you stood still for One sample at one position: the RSSI your adapter reported per BSSID during 15 seconds of"
+},
+{
+"page": "concepts.html",
+"pageTitle": "Concepts",
+"title": "What dBm actually means",
+"anchor": "dbm",
+"level": 2,
+"text": "RSSI is reported in dBm, a logarithmic ratio to one milliwatt. The numbers do not behave like intuition: −60 dBm is a thousand times more power than −90 dBm, yet the step from −70 to −60 is the same s"
+},
+{
+"page": "concepts.html",
+"pageTitle": "Concepts",
+"title": "Accuracy you can expect",
+"anchor": "accuracy",
+"level": 2,
+"text": "These are the numbers the tool is designed around, not a guarantee for your building. What you are looking at Typical error Why A measured point, repeated at the same spot ±1–2 dB Fading, orientation"
+},
+{
+"page": "concepts.html",
+"pageTitle": "Concepts",
+"title": "Where this is honest about its limits",
+"anchor": "limitations",
+"level": 2,
+"text": "One device, one antenna pattern. Your laptop's radio is not your phone's. A survey measures the surveying device; other clients differ by several dB. No spectrum analysis. The tool reads what your ada"
+},
+{
+"page": "concepts.html",
+"pageTitle": "Concepts",
+"title": "Glossary",
+"anchor": "glossary",
+"level": 2,
+"text": "Term Meaning RSSI Received signal strength, in dBm. Negative, and closer to zero is stronger. BSSID The MAC address of one radio on one AP. A dual-band AP has at least two, one per band. SSID The netw"
+},
+{
+"page": "contributing.html",
+"pageTitle": "Contributing",
+"title": "Contributing",
+"anchor": "",
+"level": 1,
+"text": "How to work on Wi-Fi Survey: repository layout, dev environment, test strategy, adding a scanner node type, API versioning, code style, docs rules and the PR checklist."
+},
+{
+"page": "contributing.html",
+"pageTitle": "Contributing",
+"title": "Repository layout",
+"anchor": "layout",
+"level": 2,
+"text": "wifi-survey/ ├── server/ FastAPI app, API v1, SQLite schema, static viewer │ ├── wifisurvey/ package: config, auth, db, main, model_import, cli │ ├── static/ index.html, app.js, sty"
+},
+{
+"page": "contributing.html",
+"pageTitle": "Contributing",
+"title": "How the pieces connect",
+"anchor": "architecture",
+"level": 2,
+"text": "One process serves the UI and the API on port 8800. Agents post readings into it, the engine computes from stored rows, and the browser reads results over the same origin. The database is the only sha"
+},
+{
+"page": "contributing.html",
+"pageTitle": "Contributing",
+"title": "Development setup",
+"anchor": "dev-setup",
+"level": 2,
+"text": "Use a virtual environment; the installer is not involved in development and should not be run against a working checkout. The version of Python is pinned in pyproject.toml , and the editable install p"
+},
+{
+"page": "contributing.html",
+"pageTitle": "Contributing",
+"title": "Test strategy",
+"anchor": "tests",
+"level": 2,
+"text": "Tests are built around isolation rather than mocks of the framework. Each test gets its own application instance and a temporary SQLite file, created and torn down by a fixture, so no test can see ano"
+},
+{
+"page": "contributing.html",
+"pageTitle": "Contributing",
+"title": "Adding a node type",
+"anchor": "node-type",
+"level": 2,
+"text": "A node type is a producer of readings plus a small amount of metadata about what it can do. The engine does not know or care which platform produced a row, so the work is mostly at the edges. Implemen"
+},
+{
+"page": "contributing.html",
+"pageTitle": "Contributing",
+"title": "Code style and API rules",
+"anchor": "style",
+"level": 2,
+"text": "Ruff runs with the repository defaults; there is no separate formatting discussion, and a pull request that reformats unrelated lines will be asked to narrow its diff. Type hints are expected on publi"
+},
+{
+"page": "contributing.html",
+"pageTitle": "Contributing",
+"title": "Documentation rules",
+"anchor": "docs",
+"level": 2,
+"text": "This site is hand-written HTML with one stylesheet and one script. There is no Markdown pipeline, no template engine and no build step, which is deliberate: the pages work from a USB stick and from an"
+},
+{
+"page": "contributing.html",
+"pageTitle": "Contributing",
+"title": "Pull request checklist",
+"anchor": "pr-checklist",
+"level": 2,
+"text": "The change does one thing, and the description says what problem it solves. pytest , ruff check and mypy server pass locally. New behaviour has a test; a fixed bug has a test that failed before the fi"
+},
+{
+"page": "faq.html",
+"pageTitle": "FAQ",
+"title": "FAQ",
+"anchor": "",
+"level": 1,
+"text": "Short answers about Wi-Fi Survey: hardware requirements, supported access points, data storage and export, map accuracy, offline operation and licence questions."
+},
+{
+"page": "faq.html",
+"pageTitle": "FAQ",
+"title": "General",
+"anchor": "general",
+"level": 2,
+"text": "Do I need UniFi gear, or does it work with Omada, Eero and consumer routers? No. Wi-Fi Survey is vendor-neutral: the survey itself only needs a device that reports BSSIDs and RSSI, which every laptop"
+},
+{
+"page": "faq.html",
+"pageTitle": "FAQ",
+"title": "Hardware",
+"anchor": "hardware",
+"level": 2,
+"text": "Which phone or laptop should I use as a scanner? Any Linux laptop with NetworkManager is the best scanner, because the agent reads real scan results without platform throttling. Android works well thr"
+},
+{
+"page": "faq.html",
+"pageTitle": "FAQ",
+"title": "Data",
+"anchor": "data",
+"level": 2,
+"text": "Where is my data stored? Everything lives in /var/lib/wifisurvey on the machine you installed it on: survey.db for readings, APs and nodes, and models/ for imported geometry. Configuration is a separa"
+},
+{
+"page": "faq.html",
+"pageTitle": "FAQ",
+"title": "Accuracy",
+"anchor": "accuracy",
+"level": 2,
+"text": "Why doesn't the heatmap match my speed test? Signal strength is not throughput. A heatmap predicts RSSI, and RSSI says nothing about your internet plan, your AP's backhaul, channel congestion, airtime"
+},
+{
+"page": "faq.html",
+"pageTitle": "FAQ",
+"title": "Operations",
+"anchor": "operations",
+"level": 2,
+"text": "Does it need an internet connection? No. Installation needs to fetch packages once, and after that the server, the UI and the agents all run on the LAN. There is no licence check, no update ping and n"
+},
+{
+"page": "heatmaps.html",
+"pageTitle": "Heatmaps",
+"title": "Heatmaps",
+"anchor": "",
+"level": 1,
+"text": "Read Wi-Fi heatmaps properly: measured points, per-AP and strongest-AP views, the signal-gap and confidence views, IDW versus kriging, the colour scale and export."
+},
+{
+"page": "heatmaps.html",
+"pageTitle": "Heatmaps",
+"title": "Five views of the same data",
+"anchor": "views",
+"level": 2,
+"text": "Every view below is built from one survey. The first shows the raw measurements; the rest interpolate a different quantity from them. View What it shows Good for Measured points only The readings as c"
+},
+{
+"page": "heatmaps.html",
+"pageTitle": "Heatmaps",
+"title": "Inverse distance weighting",
+"anchor": "idw",
+"level": 2,
+"text": "IDW gives each pixel a weighted average of nearby samples, with weight 1/d² — power 2 — inside an 8 m radius, and refuses to guess unless at least three samples fall in that radius. Pixels without eno"
+},
+{
+"page": "heatmaps.html",
+"pageTitle": "Heatmaps",
+"title": "Kriging",
+"anchor": "kriging",
+"level": 2,
+"text": "Ordinary kriging with a spherical variogram, an 8 m range and up to 24 neighbours. Rather than fixed weights, it estimates how similarity decays with distance from your own data, then solves the weigh"
+},
+{
+"page": "heatmaps.html",
+"pageTitle": "Heatmaps",
+"title": "The signal-gap view",
+"anchor": "gap",
+"level": 2,
+"text": "For each pixel, the gap view subtracts the second-best RSSI from the best. A gap of 25 dB means one AP owns that spot. A gap of 2 dB means two APs are effectively tied, well inside the ±3 dB you shoul"
+},
+{
+"page": "heatmaps.html",
+"pageTitle": "Heatmaps",
+"title": "Confidence",
+"anchor": "confidence",
+"level": 2,
+"text": "The confidence view counts supporting samples within the 8 m radius, weights them by distance, and looks at their spread. Four points within 4 m that agree to within 3 dB is a confident pixel. One poi"
+},
+{
+"page": "heatmaps.html",
+"pageTitle": "Heatmaps",
+"title": "Sticky-client zones",
+"anchor": "sticky",
+"level": 2,
+"text": "A sticky client holds on to an AP it can barely hear while a better one sits next to it. The survey cannot see clients, but it can show where the condition is possible: an RSSI strong enough to stay a"
+},
+{
+"page": "heatmaps.html",
+"pageTitle": "Heatmaps",
+"title": "Reading a map in four steps",
+"anchor": "reading",
+"level": 2,
+"text": "Confidence first. Note the red areas and discount them. Everything else is a claim about the measured region. Check the points. Switch to measured points only. If the surface and the dots disagree, th"
+},
+{
+"page": "heatmaps.html",
+"pageTitle": "Heatmaps",
+"title": "Colour scale and export",
+"anchor": "export",
+"level": 2,
+"text": "The scale runs from −30 dBm to −90 dBm in 6 dB steps, and each band means something rather than just being a colour: Band What it means in practice −30 to −50 Excellent. Close to the AP; rates will be"
+},
+{
+"page": "index.html",
+"pageTitle": "See exactly where your Wi‑Fi is good.",
+"title": "See exactly where your Wi‑Fi is good.",
+"anchor": "",
+"level": 1,
+"text": "Self-hosted Wi-Fi survey: import a 3D scan of your home, place access points, walk with a laptop or phone, and get heatmaps, a calibrated model and live position."
+},
+{
+"page": "index.html",
+"pageTitle": "See exactly where your Wi‑Fi is good.",
+"title": "What you get",
+"anchor": "what-you-get",
+"level": 2,
+"text": "v0.1 is a scaffold — read this first Working today: the installer, the first-run wizard, 3D model import through modelkit , node pairing, reading ingest and the 3D viewer. Planned, not built: walk-and"
+},
+{
+"page": "index.html",
+"pageTitle": "See exactly where your Wi‑Fi is good.",
+"title": "A look at it",
+"anchor": "screens",
+"level": 2,
+"text": "These are layout placeholders until the v0.1 screenshots are captured from a clean install. Each one shows the same three-pane layout: floors on the left, 3D model in the middle, numbers on the right."
+},
+{
+"page": "index.html",
+"pageTitle": "See exactly where your Wi‑Fi is good.",
+"title": "From zero to a first run",
+"anchor": "three-commands",
+"level": 2,
+"text": "The installer is one command on a Linux box on the same network as your access points. It needs no cloud account, no DNS and no open ports beyond the one you choose. git clone https://github.com/jpull"
+},
+{
+"page": "index.html",
+"pageTitle": "See exactly where your Wi‑Fi is good.",
+"title": "What this tool is honest about",
+"anchor": "honest",
+"level": 2,
+"text": "Wi-Fi is physics plus a lot of firmware quirks. A survey point is a measurement at one spot and one moment; a heatmap is an interpolation between those spots, not a photograph of your radio field. The"
+},
+{
+"page": "index.html",
+"pageTitle": "See exactly where your Wi‑Fi is good.",
+"title": "Where to go next",
+"anchor": "where-next",
+"level": 2,
+"text": "Install → Supported distros, Docker, port and mDNS choices, uninstall. Import your house → Polycam room mode vs raw scans, floor detection and the confirm list. Read a heatmap → IDW vs kriging, per-AP"
+},
+{
+"page": "install.html",
+"pageTitle": "Install",
+"title": "Install",
+"anchor": "",
+"level": 1,
+"text": "Install Wi-Fi Survey on Debian, Ubuntu, Fedora or Arch: requirements, installer flags, the files it creates, mDNS naming, Docker, upgrades and uninstall."
+},
+{
+"page": "install.html",
+"pageTitle": "Install",
+"title": "What you need",
+"anchor": "requirements",
+"level": 2,
+"text": "The server does the arithmetic and stores the readings; it needs no Wi-Fi adapter of its own. A mini PC, an old laptop or a small VM is enough. You need root on that machine and LAN reachability from"
+},
+{
+"page": "install.html",
+"pageTitle": "Install",
+"title": "Run the installer",
+"anchor": "install-script",
+"level": 2,
+"text": "Clone the repository, read the script — it is a few hundred lines of shell and worth ten minutes of your time — then run it as root. The script checks for Python, creates the service account, writes t"
+},
+{
+"page": "install.html",
+"pageTitle": "Install",
+"title": "What the installer creates",
+"anchor": "what-it-creates",
+"level": 2,
+"text": "Path Purpose /opt/wifi-survey Application code, the Python virtual environment and the wifi-survey command line entry point. /etc/wifisurvey/config.toml Host, port, data directory, viewer token, pairi"
+},
+{
+"page": "install.html",
+"pageTitle": "Install",
+"title": "Port and name",
+"anchor": "port-and-name",
+"level": 2,
+"text": "After a successful install the unit is enabled and started. Open http://survey.local:8800 if avahi is running on your network, or http://<SERVER_IP>:8800 if it is not. The token printed at the end of"
+},
+{
+"page": "install.html",
+"pageTitle": "Install",
+"title": "Pair your first scanner",
+"anchor": "first-agent",
+"level": 2,
+"text": "A fresh install has no nodes, so nothing can post readings yet. Pairing takes one command on the server and one on the device that will scan; the JSON it posts is documented in Scanner nodes . Start t"
+},
+{
+"page": "install.html",
+"pageTitle": "Install",
+"title": "Docker alternative",
+"anchor": "docker",
+"level": 2,
+"text": "There is no published container image yet: the compose file in installer/ builds the image locally from the same source. It runs the same server with the same data layout, so two volume mounts are all"
+},
+{
+"page": "install.html",
+"pageTitle": "Install",
+"title": "Upgrade",
+"anchor": "upgrade",
+"level": 2,
+"text": "Upgrades are in place. Take a copy of the database first — migrations are automatic and one-way, so a rollback means restoring the file you saved. sudo systemctl stop wifi-survey sudo cp /var/lib/wifi"
+},
+{
+"page": "install.html",
+"pageTitle": "Install",
+"title": "Uninstall",
+"anchor": "uninstall",
+"level": 2,
+"text": "The same script reverses the install. It stops and disables the unit, removes /opt/wifi-survey and the unit file, and asks before deleting configuration and data. sudo installer/install.sh --uninstall"
+},
+{
+"page": "install.html",
+"pageTitle": "Install",
+"title": "Where to go next",
+"anchor": "next-steps",
+"level": 2,
+"text": "Quickstart → Five steps to a first heatmap. Scanner nodes → Laptop, Android and ESP32 compared. Troubleshooting → Service, port, token, missing node."
+},
+{
+"page": "model-import.html",
+"pageTitle": "3D model import",
+"title": "3D model import",
+"anchor": "",
+"level": 1,
+"text": "Turn a GLB, glTF, OBJ or Polycam scan into a scaled floor plan: unit and up-axis checks, floor detection, wall extraction, the confirm list and wall materials."
+},
+{
+"page": "model-import.html",
+"pageTitle": "3D model import",
+"title": "Why geometry matters",
+"anchor": "formats",
+"level": 2,
+"text": "A survey without a model gives you dots: measured RSSI where you stood. Between them sits interpolation, and beyond them the log-distance model: PL(d) = PL(1m) + 10·n·log10(d) + Σ wall losses The wall"
+},
+{
+"page": "model-import.html",
+"pageTitle": "3D model import",
+"title": "The import pipeline",
+"anchor": "pipeline",
+"level": 2,
+"text": "Six stages are automatic. The seventh is you. Validate. Container, triangle count, texture size. Over-cap files are refused before the mesh expands in memory. Unit and up-axis. glTF is Y-up by specifi"
+},
+{
+"page": "model-import.html",
+"pageTitle": "3D model import",
+"title": "Floor detection",
+"anchor": "floors",
+"level": 2,
+"text": "Floor detection is one-dimensional: vertex heights in 5 cm bins, smoothed, with significant peaks taken as storeys. 2.2 m minimum separation. Closer peaks merge, because a slab's top and bottom faces"
+},
+{
+"page": "model-import.html",
+"pageTitle": "3D model import",
+"title": "Walls and regularization",
+"anchor": "cleanup",
+"level": 2,
+"text": "The 1.1–1.5 m band sits above beds and desks and below most door heads. What still crosses it is a wall or something tall — a wardrobe, a kitchen run. Raw RANSAC output is correct and unusable: fragme"
+},
+{
+"page": "model-import.html",
+"pageTitle": "3D model import",
+"title": "The confirm list",
+"anchor": "confirm",
+"level": 2,
+"text": "Nothing is written until you accept the list: one numbered row per segment, with the pending action and the reason for it. # Operation Key What it does Use when 1 keep K Accept the segment as drawn De"
+},
+{
+"page": "model-import.html",
+"pageTitle": "3D model import",
+"title": "Wall materials",
+"anchor": "materials",
+"level": 2,
+"text": "Each segment carries one material class, which sets the loss charged when a path crosses it. Loss is per crossing, not per metre, and a wall crossed twice counts twice. Calibration cannot rescue a wal"
+},
+{
+"page": "model-import.html",
+"pageTitle": "3D model import",
+"title": "Merging an add-on scan",
+"anchor": "merging",
+"level": 2,
+"text": "A room scanned later — one that was locked, a room added to the plan — arrives as a second model to be placed into the first. The merge is rigid: both scans are metric, only their origins differ. Cham"
+},
+{
+"page": "model-import.html",
+"pageTitle": "3D model import",
+"title": "Cross-floor alignment",
+"anchor": "cross-floor",
+"level": 2,
+"text": "Floors share an origin and a rotation. The position estimate returns a 3D point, and the model must know which walls a path from a first-floor AP to a ground-floor client crosses. The automatic method"
+},
+{
+"page": "position.html",
+"pageTitle": "Live position",
+"title": "Live position",
+"anchor": "",
+"level": 1,
+"text": "Turn a Wi-Fi fingerprint into an x, y and floor estimate: k-nearest-neighbour matching, floor-first classification, smoothing, accuracy figures and the position API."
+},
+{
+"page": "position.html",
+"pageTitle": "Live position",
+"title": "How a fingerprint becomes a coordinate",
+"anchor": "how",
+"level": 2,
+"text": "The method is k-nearest-neighbour matching over survey points. Each stored point holds a vector of BSSID to RSSI. A new scan is compared with every point on every floor, and the closest matches vote o"
+},
+{
+"page": "position.html",
+"pageTitle": "Live position",
+"title": "What a fingerprint contains",
+"anchor": "fingerprint",
+"level": 2,
+"text": "A fingerprint is a map from BSSID to RSSI in dBm, one entry per radio the scanning device could hear, plus a timestamp and which band it came from. It is the same data a survey point stores, which is"
+},
+{
+"page": "position.html",
+"pageTitle": "Live position",
+"title": "Smoothing",
+"anchor": "smoothing",
+"level": 2,
+"text": "Raw kNN output jitters. Two scans taken a second apart in the same spot can match slightly different neighbours, and the estimate jumps half a metre for no physical reason. Two filters sit on the outp"
+},
+{
+"page": "position.html",
+"pageTitle": "Live position",
+"title": "Accuracy",
+"anchor": "accuracy",
+"level": 2,
+"text": "Position accuracy is a function of survey density, not of the algorithm. The figures below are typical for a house with drywall partitions and a couple of APs, measured after smoothing. Points per flo"
+},
+{
+"page": "position.html",
+"pageTitle": "Live position",
+"title": "When it says it cannot estimate",
+"anchor": "refusals",
+"level": 2,
+"text": "The service refuses rather than guesses. Four conditions produce an explicit refusal: Fewer than 3 shared BSSIDs between the scan and the survey. Two radios cannot separate a position on a plane, and"
+},
+{
+"page": "position.html",
+"pageTitle": "Live position",
+"title": "Setting up for a usable fix",
+"anchor": "setup",
+"level": 2,
+"text": "Make sure at least two APs are visible from everywhere. Three is better. One AP gives distance but no direction, and kNN over a single BSSID cannot resolve a ring of possible positions. Survey every r"
+},
+{
+"page": "position.html",
+"pageTitle": "Live position",
+"title": "API",
+"anchor": "api",
+"level": 2,
+"text": "Position is a single POST. Authentication is the usual bearer token; the prefix is /api/v1 . curl -s -X POST http://survey.local:8800/api/v1/position \\ -H \"Authorization: Bearer <YOUR_TOKEN>\" \\ -H"
+},
+{
+"page": "privacy.html",
+"pageTitle": "Privacy",
+"title": "Privacy",
+"anchor": "",
+"level": 1,
+"text": "What Wi-Fi Survey stores, where it lives on disk, which network ports open, how UniFi credentials are handled, and what deleting a survey or uninstalling leaves behind."
+},
+{
+"page": "privacy.html",
+"pageTitle": "Privacy",
+"title": "What is stored",
+"anchor": "stored",
+"level": 2,
+"text": "All persistent state lives under /var/lib/wifisurvey , with configuration under /etc/wifisurvey . There is no second location, no cache directory outside the database, and no log shipper. Data Where W"
+},
+{
+"page": "privacy.html",
+"pageTitle": "Privacy",
+"title": "No telemetry",
+"anchor": "telemetry",
+"level": 2,
+"text": "There is no analytics, no crash reporting, no usage counter and no phone-home. The server does not check for updates at startup, and the installer does not contact anything after it has fetched its pa"
+},
+{
+"page": "privacy.html",
+"pageTitle": "Privacy",
+"title": "Network listeners",
+"anchor": "network",
+"level": 2,
+"text": "The server binds 0.0.0.0:8800 so that phones and laptops on the LAN can reach it. That is the only socket it opens. There is no separate metrics port, no database listener exposed and no mDNS responde"
+},
+{
+"page": "privacy.html",
+"pageTitle": "Privacy",
+"title": "UniFi integration",
+"anchor": "unifi",
+"level": 2,
+"text": "The integration uses a read-only account that you create on your own controller. Controller polling is planned : in v0.1 the wizard stores the URL, site, username and password file, and makes no outbo"
+},
+{
+"page": "privacy.html",
+"pageTitle": "Privacy",
+"title": "Browser storage",
+"anchor": "browser",
+"level": 2,
+"text": "The web UI keeps your API token in localStorage under a single key. There are no cookies, no session store on the server and no third-party requests: the interface loads only files from the same origi"
+},
+{
+"page": "privacy.html",
+"pageTitle": "Privacy",
+"title": "Deleting your data",
+"anchor": "deleting",
+"level": 2,
+"text": "Deletion has three levels, and each one is deliberate about scope: Delete a survey — planned : removes its readings, positions, heatmap cache and the AP placements attached to it. The model file stays"
+},
+{
+"page": "privacy.html",
+"pageTitle": "Privacy",
+"title": "Neighbouring networks",
+"anchor": "neighbours",
+"level": 2,
+"text": "A Wi-Fi scan reports every BSSID the radio can hear, which on a typical street includes a dozen networks that are not yours. Those rows are stored as part of the survey because excluding them would di"
+},
+{
+"page": "propagation-model.html",
+"pageTitle": "Propagation model",
+"title": "Propagation model",
+"anchor": "",
+"level": 1,
+"text": "How Wi-Fi Survey estimates signal where you never measured: log-distance path loss, per-material wall losses, least-squares calibration and a held-out error score."
+},
+{
+"page": "propagation-model.html",
+"pageTitle": "Propagation model",
+"title": "An estimate that works where you did not measure",
+"anchor": "model",
+"level": 2,
+"text": "A survey point is one measurement, at one spot, at one moment. You will visit tens of them; the floor has hundreds. The model sits between them — a physical calculation, not an interpolation — which i"
+},
+{
+"page": "propagation-model.html",
+"pageTitle": "Propagation model",
+"title": "Walls, doorways and the path search",
+"anchor": "walls",
+"level": 2,
+"text": "The obvious implementation — count the walls a straight line from AP to receiver crosses — is wrong often enough to matter. The model builds a 2D navigation mesh per floor instead: one node per room,"
+},
+{
+"page": "propagation-model.html",
+"pageTitle": "Propagation model",
+"title": "Calibration",
+"anchor": "calibration",
+"level": 2,
+"text": "Three things are fitted: the exponent n , a multiplier per material, and a transmit-power offset per access point. The offset absorbs the fact that two APs at the same configured power rarely radiate"
+},
+{
+"page": "propagation-model.html",
+"pageTitle": "Propagation model",
+"title": "Held-out error",
+"anchor": "held-out",
+"level": 2,
+"text": "A model scored on its own training points always looks good. Wi-Fi Survey reports 5-fold cross-validation: points are split into five groups, the model is fitted on four and scored on the fifth, and t"
+},
+{
+"page": "propagation-model.html",
+"pageTitle": "Propagation model",
+"title": "Residual correction",
+"anchor": "residuals",
+"level": 2,
+"text": "After the global fit there is always structure left in the error. The model calls a partition drywall at 3 dB; the partition has metal studs and a foil facing, so every path through it is 6 dB optimis"
+},
+{
+"page": "propagation-model.html",
+"pageTitle": "Propagation model",
+"title": "What-if previews",
+"anchor": "what-if",
+"level": 2,
+"text": "With a calibrated model you can change the plan without touching anything physical; the preview recomputes the floor in a second or two. Move an AP — every distance and wall crossing is recalculated."
+},
+{
+"page": "propagation-model.html",
+"pageTitle": "Propagation model",
+"title": "Materials and their losses",
+"anchor": "materials",
+"level": 2,
+"text": "These are the v0.1 defaults; each is editable per building and scaled by the calibrated multiplier, which stays within 0.5–1.5. Material Loss Typical construction Drywall 3 dB Plasterboard on studs, i"
+},
+{
+"page": "propagation-model.html",
+"pageTitle": "Propagation model",
+"title": "What the model cannot see",
+"anchor": "limits",
+"level": 2,
+"text": "The model knows walls and distance. It does not know furniture — a full bookshelf or tiled bathroom will surprise it — or people, and a room with thirty of them is several dB worse than the empty one"
+},
+{
+"page": "quickstart.html",
+"pageTitle": "Quickstart",
+"title": "Quickstart",
+"anchor": "",
+"level": 1,
+"text": "The ten-minute path: install Wi-Fi Survey, import or draw a floor, place an access point, pair one scanner node, take five points and open your first heatmap."
+},
+{
+"page": "quickstart.html",
+"pageTitle": "Quickstart",
+"title": "Before you start",
+"anchor": "before",
+"level": 2,
+"text": "Have these ready, or the ten minutes stretch into an evening: A Linux host with systemd and root access, on the same LAN as your access point. See Install for the exact list. The viewer token the inst"
+},
+{
+"page": "quickstart.html",
+"pageTitle": "Quickstart",
+"title": "The ten-minute path",
+"anchor": "path",
+"level": 2,
+"text": "The five steps below are the same order the UI is arranged in: map, APs, nodes, survey, heatmap. Do not skip ahead — each step writes something the next one reads. Install the server and open the UI R"
+},
+{
+"page": "quickstart.html",
+"pageTitle": "Quickstart",
+"title": "What the first map is worth",
+"anchor": "first-map",
+"level": 2,
+"text": "Five points is a smoke test, not a survey. Interpolation needs neighbours on all sides of a cell; with five samples most of the floor is extrapolation, and the map will show confident-looking colour w"
+},
+{
+"page": "quickstart.html",
+"pageTitle": "Quickstart",
+"title": "How long each step actually takes",
+"anchor": "timing",
+"level": 2,
+"text": "Step Typical time What usually blocks you 1 · Install 3–5 min Package downloads, or port 8800 already in use. 2 · Floor 1 min rectangle, 5–15 min scan A model without a clear ground plane, or units in"
+},
+{
+"page": "quickstart.html",
+"pageTitle": "Quickstart",
+"title": "From five points to a real survey",
+"anchor": "extend",
+"level": 2,
+"text": "Keep the same model, APs and node, and add points to the same run instead of starting over. The practical loop is: walk a room, tap, wait for the sample, repeat. Aim for a grid with points every 4–6 m"
+},
+{
+"page": "quickstart.html",
+"pageTitle": "Quickstart",
+"title": "What next",
+"anchor": "what-next",
+"level": 2,
+"text": "Concepts → Measured, interpolated and modelled values, and why the UI labels them differently. Running a survey → Point counts, walking patterns, and how to resume a run without corrupting it. Heatmap"
+},
+{
+"page": "scanner-nodes.html",
+"pageTitle": "Scanner nodes",
+"title": "Scanner nodes",
+"anchor": "",
+"level": 1,
+"text": "How Wi-Fi Survey scanner nodes work: the pairing flow, the reading schema in JSON, and the Linux, Android/Termux and ESP32 agents compared on bands and accuracy."
+},
+{
+"page": "scanner-nodes.html",
+"pageTitle": "Scanner nodes",
+"title": "Pairing a node",
+"anchor": "pairing",
+"level": 2,
+"text": "A node cannot post until it holds a node token. Pairing exchanges a short, single-use code for it, so you never type the server token into a device you might lose. Print a code on the server Run sudo"
+},
+{
+"page": "scanner-nodes.html",
+"pageTitle": "Scanner nodes",
+"title": "The reading schema",
+"anchor": "schema",
+"level": 2,
+"text": "One POST is one sample at one position: a node identifier, a UTC timestamp, a position on a floor, and an array of per-BSSID observations. POST /api/v1/readings Authorization: Bearer <NODE_TOKEN> Cont"
+},
+{
+"page": "scanner-nodes.html",
+"pageTitle": "Scanner nodes",
+"title": "Linux agent",
+"anchor": "linux",
+"level": 2,
+"text": "The Linux agent is the reference implementation: one stdlib-only Python file, no package, no virtual environment. agent-linux/install.sh copies it to ~/.local/bin , pairs it and optionally installs a"
+},
+{
+"page": "scanner-nodes.html",
+"pageTitle": "Scanner nodes",
+"title": "Android via Termux",
+"anchor": "android",
+"level": 2,
+"text": "A phone is the most convenient node: you already carry it, and Termux:API gives raw scan results without root. pkg install termux-api python termux-wifi-scaninfo # JSON array of visible BSSID"
+},
+{
+"page": "scanner-nodes.html",
+"pageTitle": "Scanner nodes",
+"title": "ESP32",
+"anchor": "esp32",
+"level": 2,
+"text": "An ESP32 makes a cheap fixed node: it sits in one place, scans every interval and reports on 2.4 GHz only. The sketch needs WiFi.h , HTTPClient.h , Preferences.h and about 120 lines. The outline: on f"
+},
+{
+"page": "scanner-nodes.html",
+"pageTitle": "Scanner nodes",
+"title": "Comparing the three",
+"anchor": "accuracy",
+"level": 2,
+"text": "Node Bands Source of RSSI Typical accuracy Cadence Power Linux laptop 2.4, 5, and 6 GHz where the adapter reports it iw dBm when available, otherwise nmcli SIGNAL percentage converted ±3 dB (nmcli pat"
+},
+{
+"page": "scanner-nodes.html",
+"pageTitle": "Scanner nodes",
+"title": "Choosing a node",
+"anchor": "choosing",
+"level": 2,
+"text": "Most people need two: a laptop for the main survey, and one fixed node for a floor that is awkward to walk twice. Use a Linux laptop when you want the whole picture, including 5 GHz, and can walk with"
+},
+{
+"page": "survey.html",
+"pageTitle": "Running a survey",
+"title": "Running a survey",
+"anchor": "",
+"level": 1,
+"text": "Place access points, click where you stand, take 15-second samples and cover a floor properly. Point counts by floor size, recording tips, redoing points and staleness."
+},
+{
+"page": "survey.html",
+"pageTitle": "Running a survey",
+"title": "Before you start",
+"anchor": "before",
+"level": 2,
+"text": "Five things have to be true before the first point. Each is quick to check now and annoying to discover an hour later. Model imported and confirmed. The walls in the model are the walls it charges los"
+},
+{
+"page": "survey.html",
+"pageTitle": "Running a survey",
+"title": "Placing access points",
+"anchor": "place-aps",
+"level": 2,
+"text": "Open APs and add one row per radio. A dual-band AP is two rows sharing a position, because channel and power are set per radio. Field What it means Notes x , y Position in metres in model coordinates"
+},
+{
+"page": "survey.html",
+"pageTitle": "Running a survey",
+"title": "The I'm-here flow",
+"anchor": "im-here",
+"level": 2,
+"text": "Position comes from one input: you. There is no inertial tracking and no assumption that you walked in a straight line from the previous point, so the tool cannot notice that you went into the kitchen"
+},
+{
+"page": "survey.html",
+"pageTitle": "Running a survey",
+"title": "What a sample is",
+"anchor": "sample",
+"level": 2,
+"text": "Fifteen seconds of scans, not a single reading. The window exists because a scan pass takes time: nmcli enforces roughly 10 s between rescans, so 15 s buys one full pass, sometimes two, across the cha"
+},
+{
+"page": "survey.html",
+"pageTitle": "Running a survey",
+"title": "How many points",
+"anchor": "coverage",
+"level": 2,
+"text": "Ten to fifteen points per floor is the minimum for a usable map. Twenty to twenty-five is where the model becomes worth calibrating, because the fit then has enough spread to separate wall loss from d"
+},
+{
+"page": "survey.html",
+"pageTitle": "Running a survey",
+"title": "Recording tips",
+"anchor": "tips",
+"level": 2,
+"text": "Chest height. Hold the device at 1.2–1.4 m, where a laptop or phone actually sits. Sampling at desk height and reading the map at standing height mixes two paths. Do not cover the antenna. Hands aroun"
+},
+{
+"page": "survey.html",
+"pageTitle": "Running a survey",
+"title": "Editing and redoing points",
+"anchor": "editing",
+"level": 2,
+"text": "Points stay editable, and the three operations do different things: Move corrects a mis-click. It changes where the readings plot and re-runs interpolation, but re-measures nothing. Move by tens of ce"
+},
+{
+"page": "survey.html",
+"pageTitle": "Running a survey",
+"title": "What makes a survey stale",
+"anchor": "stale",
+"level": 2,
+"text": "A survey describes a radio environment at a moment. Change the environment and the map still renders perfectly while describing nothing. Trigger What to redo An AP moved Re-survey the affected floor;"
+},
+{
+"page": "troubleshooting.html",
+"pageTitle": "Troubleshooting",
+"title": "Troubleshooting",
+"anchor": "",
+"level": 1,
+"text": "Symptom-first fixes for Wi-Fi Survey: nodes showing offline, port 8800 conflicts, firewall blocks, stale scans, failed 3D imports, odd heatmaps, disk growth and resets."
+},
+{
+"page": "troubleshooting.html",
+"pageTitle": "Troubleshooting",
+"title": "A node shows as offline",
+"anchor": "agent-offline",
+"level": 2,
+"text": "A node is offline when the server has not accepted a reading from it inside the expected window. That is a different failure from \"the node was never paired\", and the two look similar in the UI: both"
+},
+{
+"page": "troubleshooting.html",
+"pageTitle": "Troubleshooting",
+"title": "Port 8800 is already in use",
+"anchor": "port",
+"level": 2,
+"text": "The service exits at startup with an address-in-use error, and the unit goes into a restart loop. Find out who owns the port before you change anything: ss -ltnp | grep 8800 Three outcomes matter. If"
+},
+{
+"page": "troubleshooting.html",
+"pageTitle": "Troubleshooting",
+"title": "The dashboard is unreachable from another device",
+"anchor": "firewall",
+"level": 2,
+"text": "If curl http://survey.local:8800 works on the server and the same request times out from your laptop, the service is fine and something between the two is dropping packets. Allow the port on the host"
+},
+{
+"page": "troubleshooting.html",
+"pageTitle": "Troubleshooting",
+"title": "Scans are not fresh",
+"anchor": "stale",
+"level": 2,
+"text": "\"Not fresh\" means the numbers on screen do not reflect the room right now. Scan freshness has four usual causes, and only one of them is a fault. Symptom Cause Fix Two taps seconds apart return identi"
+},
+{
+"page": "troubleshooting.html",
+"pageTitle": "Troubleshooting",
+"title": "Model import fails",
+"anchor": "import",
+"level": 2,
+"text": "Import errors are specific. Read the message, then match it here before re-exporting anything. Message or symptom Cause Fix Model loads on its side or is 100× too large Up-axis and unit metadata are m"
+},
+{
+"page": "troubleshooting.html",
+"pageTitle": "Troubleshooting",
+"title": "The heatmap looks wrong",
+"anchor": "heatmap",
+"level": 2,
+"text": "A heatmap is an interpolation between measured points. Most \"wrong\" maps are under-sampled maps, or maps drawn at the wrong place. What you see Likely cause Fix Large smooth blobs that ignore walls To"
+},
+{
+"page": "troubleshooting.html",
+"pageTitle": "Troubleshooting",
+"title": "Disk is filling up",
+"anchor": "disk",
+"level": 2,
+"text": "Readings grow with time, not with the size of the building. A point stores every BSSID visible from that spot, so a dense street with many neighbouring networks costs more per point than an isolated h"
+},
+{
+"page": "troubleshooting.html",
+"pageTitle": "Troubleshooting",
+"title": "Logs and support bundles",
+"anchor": "logs",
+"level": 2,
+"text": "The journal is the primary source. Two hundred lines covers a restart plus the failed requests that follow it: journalctl -u wifi-survey -n 200 --no-pager journalctl -u wifi-survey --since \"1 hour ago"
+},
+{
+"page": "troubleshooting.html",
+"pageTitle": "Troubleshooting",
+"title": "Reset and recovery",
+"anchor": "reset",
+"level": 2,
+"text": "Three operations cover most recovery work. They differ in how much they delete, so pick deliberately."
+},
+{
+"page": "troubleshooting.html",
+"pageTitle": "Troubleshooting",
+"title": "Reset a node token",
+"anchor": "reset-node-token",
+"level": 3,
+"text": "Revoking a token is immediate and does not touch survey data. Old readings stay attributed to the same node id, so history and fingerprints remain intact. Open the node, choose revoke, then pair again"
+},
+{
+"page": "troubleshooting.html",
+"pageTitle": "Troubleshooting",
+"title": "Re-import a model without losing points",
+"anchor": "reset-reimport",
+"level": 3,
+"text": "Points are stored against coordinates on a floor, not against the mesh, so a model can be replaced while the readings survive. Import the corrected model, align the floor plane to the same origin at t"
+},
+{
+"page": "troubleshooting.html",
+"pageTitle": "Troubleshooting",
+"title": "Factory reset",
+"anchor": "reset-factory",
+"level": 3,
+"text": "A factory reset removes the database, imported models, node registrations and the API token, and returns the configuration to defaults. It does not touch the installed binary. Take a copy of /var/lib/"
+},
+{
+"page": "tuning.html",
+"pageTitle": "Tuning recommendations",
+"title": "Tuning recommendations",
+"anchor": "",
+"level": 1,
+"text": "Rule-based channel and power suggestions with dry-run by default, one change per run, a 01:00–05:00 window, a 3 dB step limit and automatic rollback."
+},
+{
+"page": "tuning.html",
+"pageTitle": "Tuning recommendations",
+"title": "The rules",
+"anchor": "rules",
+"level": 2,
+"text": "Each rule has a trigger you can check against your own controller, a proposed change, and a reason. Nothing is proposed from a black box: if you disagree with the reason, ignore the suggestion and the"
+},
+{
+"page": "tuning.html",
+"pageTitle": "Tuning recommendations",
+"title": "Guardrails",
+"anchor": "guardrails",
+"level": 2,
+"text": "Changing a radio affects every client on it, so the default posture is caution and the defaults are deliberately slow. Dry-run is the default. Nothing is written until you turn that off and explicitly"
+},
+{
+"page": "tuning.html",
+"pageTitle": "Tuning recommendations",
+"title": "Dry-run",
+"anchor": "dry-run",
+"level": 2,
+"text": "In dry-run the rules still fire and the scoring still runs; the only thing missing is the write. Each recommendation shows the exact change it would make — the AP, the field, the current value and the"
+},
+{
+"page": "tuning.html",
+"pageTitle": "Tuning recommendations",
+"title": "Applying a change",
+"anchor": "applying",
+"level": 2,
+"text": "Writing is enabled per controller and nowhere else. Go to Settings → Automation , select the controller, choose which change types are allowed — channel, power, width, and so on — and set the window d"
+},
+{
+"page": "tuning.html",
+"pageTitle": "Tuning recommendations",
+"title": "Rollback",
+"anchor": "rollback",
+"level": 2,
+"text": "Rollback restores the previous value of the field that was changed — the old channel, or the old transmit power — and nothing else. It is automatic when a rollback condition trips during the watch per"
+},
+{
+"page": "tuning.html",
+"pageTitle": "Tuning recommendations",
+"title": "Enabling automation",
+"anchor": "enable",
+"level": 2,
+"text": "The defaults live in /etc/wifisurvey/config.toml . Leave automation off until you have run dry-run long enough to trust the suggestions. [automation] enabled = false dry_run = true window = \"01:00-05:"
+},
+{
+"page": "tuning.html",
+"pageTitle": "Tuning recommendations",
+"title": "Limits",
+"anchor": "limits",
+"level": 2,
+"text": "The rules are conservative by design: they under-recommend rather than propose something clever and fragile, so a well-tuned network often gets no suggestions at all — intended, not a bug. Scope of v0"
+},
+{
+"page": "unifi.html",
+"pageTitle": "UniFi integration",
+"title": "UniFi integration",
+"anchor": "",
+"level": 1,
+"text": "Connect a UniFi controller with a local read-only account, see which endpoints are polled and what is never read, or type AP details in by hand instead."
+},
+{
+"page": "unifi.html",
+"pageTitle": "UniFi integration",
+"title": "Create a local read-only account",
+"anchor": "account",
+"level": 2,
+"text": "Do not reuse your administrator account. Make a dedicated account with the smallest set of rights that still lets it list devices, and treat the password as a credential for this tool alone. Settings"
+},
+{
+"page": "unifi.html",
+"pageTitle": "UniFi integration",
+"title": "Point the tool at your controller",
+"anchor": "connect",
+"level": 2,
+"text": "The URL depends on what you are running. A self-hosted software controller on a Linux host normally answers on port 8443: [unifi] host = \"https://<CONTROLLER>:8443\" site = \"default\" username = \"wifi-s"
+},
+{
+"page": "unifi.html",
+"pageTitle": "UniFi integration",
+"title": "What it calls",
+"anchor": "endpoints",
+"level": 2,
+"text": "Path Method Returns Why it is read /api/auth/login POST Session cookie Authenticates the read-only account; on UniFi OS consoles it sits behind /proxy/network /api/s/<site>/stat/device GET AP inventor"
+},
+{
+"page": "unifi.html",
+"pageTitle": "UniFi integration",
+"title": "What is read, and what never is",
+"anchor": "what-is-read",
+"level": 2,
+"text": "The integration reads inventory and counters: device models, firmware versions, channels, widths, transmit power, client associations, RSSI values and SSID names. That is enough to fill in the access"
+},
+{
+"page": "unifi.html",
+"pageTitle": "UniFi integration",
+"title": "Where the credentials live",
+"anchor": "privacy",
+"level": 2,
+"text": "Controller credentials are stored in /etc/wifisurvey/config.toml with mode 0600 , owned by the service user. Nothing in that file is served over HTTP, and the API never echoes a password back. The ses"
+},
+{
+"page": "unifi.html",
+"pageTitle": "UniFi integration",
+"title": "Manual mode",
+"anchor": "manual-mode",
+"level": 2,
+"text": "Manual mode is the default and it is not a degraded experience. You add each access point yourself: name, model, band, channel, width and transmit power. The tool uses that to place the AP on the plan"
+},
+{
+"page": "unifi.html",
+"pageTitle": "UniFi integration",
+"title": "Limits",
+"anchor": "limits",
+"level": 2,
+"text": "UniFi OS and the older self-hosted controller differ in URL layout, login response shape and where the network application is mounted. Both are supported, but a mixed environment may need the prefix s"
+}
+]
+}

@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Troubleshooting — Wi-Fi Survey docs</title>
+<meta name="description" content="Symptom-first fixes for Wi-Fi Survey: nodes showing offline, port 8800 conflicts, firewall blocks, stale scans, failed 3D imports, odd heatmaps, disk growth and resets.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body data-page="troubleshooting">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle navigation">☰ <span>Menu</span></button>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="brand-tag">docs</span></a>
+  <div class="search" role="search">
+    <input id="searchInput" type="search" placeholder="Search docs…  ( / )" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <noscript>
+      <div class="nav-group">
+        <p class="nav-group-title">Chapters</p>
+        <ul class="nav-list">
+          <li><a class="nav-link" href="index.html">Overview</a></li>
+          <li><a class="nav-link" href="install.html">Install</a></li>
+          <li><a class="nav-link" href="quickstart.html">Quickstart</a></li>
+          <li><a class="nav-link" href="concepts.html">Concepts</a></li>
+          <li><a class="nav-link" href="scanner-nodes.html">Scanner nodes</a></li>
+          <li><a class="nav-link" href="model-import.html">3D model import</a></li>
+          <li><a class="nav-link" href="survey.html">Running a survey</a></li>
+          <li><a class="nav-link" href="heatmaps.html">Heatmaps</a></li>
+          <li><a class="nav-link" href="propagation-model.html">Propagation model</a></li>
+          <li><a class="nav-link" href="position.html">Live position</a></li>
+          <li><a class="nav-link" href="unifi.html">UniFi integration</a></li>
+          <li><a class="nav-link" href="tuning.html">Tuning recommendations</a></li>
+          <li><a class="nav-link" href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a class="nav-link" href="faq.html">FAQ</a></li>
+          <li><a class="nav-link" href="privacy.html">Privacy</a></li>
+          <li><a class="nav-link" href="contributing.html">Contributing</a></li>
+          <li><a class="nav-link" href="changelog.html">Changelog</a></li>
+        </ul>
+        <p class="nojs-note">JavaScript is off: this list is the full chapter index, but in-page search, the table of contents and the copy buttons are unavailable.</p>
+      </div>
+    </noscript>
+  </aside>
+
+  <main class="content" id="main">
+    <article>
+
+      <h1>Troubleshooting</h1>
+      <p class="lede">Almost every problem lands in one of three buckets: a node that cannot reach the server, a server that cannot bind its port, or data that is older than the screen you are reading. This chapter works symptom first — find the row that matches what you see, run the check, apply the fix, then test again.</p>
+      <p class="meta"><span>v0.1</span><span>~10 min read</span></p>
+
+      <div class="callout limit">
+        <p class="callout-title">v0.1 has no doctor or support-bundle command</p>
+        <p>This chapter assumes the finished tool in a few places. In v0.1 use <code>systemctl status</code>, <code>journalctl</code> and <code>wifi-survey status</code>, and read the config with <code>wifi-survey show-config</code>. <code>wifi-survey doctor</code>, <code>wifi-survey support-bundle</code> and the in-UI factory reset are <strong>planned</strong>.</p>
+      </div>
+
+      <p>Start with the service, not with the browser. Three commands answer "is it running", "what did it last complain about" and "is the configuration coherent":</p>
+<pre><code class="language-bash">systemctl status wifi-survey --no-pager
+journalctl -u wifi-survey -n 50 --no-pager
+sudo -u wifisurvey -H /opt/wifi-survey/venv/bin/wifi-survey status</code></pre>
+
+      <div class="callout note">
+        <p class="callout-title">One change at a time</p>
+        <p>Each fix below is independent. Apply one, re-test, then move on. If you change three things at once and the symptom disappears, you will not know which one mattered when it returns a month later.</p>
+      </div>
+
+      <h2 id="agent-offline">A node shows as offline</h2>
+      <p>A node is offline when the server has not accepted a reading from it inside the expected window. That is a different failure from "the node was never paired", and the two look similar in the UI: both leave the node greyed out in the scanner list. Open the node's detail panel first. If it has a last-seen timestamp, the pairing worked and something broke afterwards. If the panel has no timestamp at all, go straight to the pairing steps at the end of this section.</p>
+      <p>Node tokens are not the dashboard token. The <code>[security] viewer_token</code> in <code>/etc/wifisurvey/config.toml</code> belongs to the human using the UI; every node gets its own token when it claims a pairing code, and either side can revoke it. Pasting the dashboard token into an agent is the single most common cause of a 401 in the logs.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Check</th><th>How to confirm</th><th>What it usually means</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Token revoked</td><td>Node page shows no last-seen time; the journal has <code>401</code> for that node id</td><td>The server no longer accepts the node's token. Re-pair the node.</td></tr>
+            <tr><td>Clock skew</td><td>Compare <code>timedatectl</code> on the node and the server</td><td>Readings stamped more than 60 s away from server time are rejected, so a node with a dead NTP client keeps failing without an obvious error on the device.</td></tr>
+            <tr><td>mDNS does not resolve</td><td><code>getent hosts survey.local</code> on the node</td><td>Avahi is not running, or the node is on a VLAN where multicast does not reach the server. Use the IP address instead.</td></tr>
+            <tr><td>Node on a guest VLAN</td><td>Compare the node's subnet with the server's</td><td>Guest networks usually block client-to-LAN traffic. Move the node to the main network.</td></tr>
+            <tr><td>Wrong host or port</td><td><code>curl</code> from the node itself</td><td>The agent is pointed at an address that does not answer, or at port 8800 on a machine where the service is not running.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Test the path from the node, not from your laptop. <code>/healthz</code> needs no token and proves reachability; the second call proves the node token is accepted (a <code>422</code> means auth passed and only the empty body was rejected):</p>
+<pre><code class="language-bash">curl -sS http://survey.local:8800/healthz
+
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -H 'Authorization: Bearer &lt;NODE_TOKEN&gt;' -H 'Content-Type: application/json' \
+  -d '{}' http://survey.local:8800/api/v1/readings</code></pre>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Result</th><th>Read it as</th><th>Next step</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>200</code> from <code>/healthz</code></td><td>The network reaches the server</td><td>Now check the token with the second call.</td></tr>
+            <tr><td><code>422</code> from <code>/api/v1/readings</code></td><td>Token accepted; the empty body was rejected</td><td>Auth and connectivity are fine. The problem is in the agent process, not the connection.</td></tr>
+            <tr><td><code>401</code></td><td>Token is wrong or revoked</td><td>Revoke the node in the UI and pair it again.</td></tr>
+            <tr><td><code>404</code></td><td>Something answers, but not this API</td><td>You reached a different service on port 8800. See <a href="#port">Port already in use</a>.</td></tr>
+            <tr><td><code>Could not resolve host</code></td><td>mDNS is not working from this device</td><td>Use <code>http://&lt;SERVER_IP&gt;:8800</code>.</td></tr>
+            <tr><td><code>Connection refused</code></td><td>Nothing is listening on that port</td><td>Check the service on the server, then the firewall.</td></tr>
+            <tr><td>Timeout after several seconds</td><td>Packets are being dropped</td><td>Firewall or VLAN isolation. See <a href="#firewall">Firewall</a>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>To re-pair, revoke the node in the dashboard, generate a new six-digit single-use code, and claim it from the agent within 10 minutes. The claim is a single POST to <code>/api/v1/pair</code>; the code is consumed on first use, so a second device cannot reuse it. If the code expires you will get a plain rejection rather than a partial pairing, and you can simply generate another.</p>
+
+      <h2 id="port">Port 8800 is already in use</h2>
+      <p>The service exits at startup with an address-in-use error, and the unit goes into a restart loop. Find out who owns the port before you change anything:</p>
+<pre><code class="language-bash">ss -ltnp | grep 8800</code></pre>
+      <p>Three outcomes matter. If the process is another <code>wifi-survey</code> instance, you have two units enabled — usually an older manual run plus the systemd unit — and should stop the manual one. If the process is <code>docker-proxy</code>, a container is publishing 8800 and you should move one of the two. If it is an unrelated service, change the Wi-Fi Survey port instead of fighting over it.</p>
+      <p>You can override the port for a single run with <code>--port</code>, or set it permanently in <code>/etc/wifisurvey/config.toml</code>:</p>
+<pre><code class="language-toml">[server]
+host = "0.0.0.0"
+port = 8788
+</code></pre>
+      <p>Restart after editing and confirm the new listener, then update anything that hard-coded the old port — the mDNS advertisement, bookmarks, agent configuration and your firewall rule:</p>
+<pre><code class="language-bash">sudo systemctl restart wifi-survey
+ss -ltnp | grep 8788</code></pre>
+      <p>The UI and the API always share one origin, so a port change moves both. Nothing else in the configuration refers to the port by number, but clients do.</p>
+
+      <h2 id="firewall">The dashboard is unreachable from another device</h2>
+      <p>If <code>curl http://survey.local:8800</code> works on the server and the same request times out from your laptop, the service is fine and something between the two is dropping packets. Allow the port on the host firewall:</p>
+<pre><code class="language-bash">sudo ufw allow 8800/tcp
+# or, on Fedora/RHEL family
+sudo firewall-cmd --add-port=8800/tcp --permanent
+sudo firewall-cmd --reload</code></pre>
+      <div class="callout warn">
+        <p class="callout-title">Docker bypasses ufw</p>
+        <p>Ports published with <code>-p 8800:8800</code> are written straight into the nat table, so ufw rules do not filter them. If you run the container, bind the publish to one interface (<code>-p &lt;SERVER_IP&gt;:8800:8800</code>) or manage the rules in the Docker chain. Checking <code>ufw status</code> alone will tell you the port is blocked while it is in fact wide open.</p>
+      </div>
+      <p>On a flat home LAN the remaining suspects are client isolation on the access point (often on by default for guest SSIDs) and a router that treats wireless clients as a separate zone. Both are configuration on the network gear, not on the survey server.</p>
+
+      <h2 id="stale">Scans are not fresh</h2>
+      <p>"Not fresh" means the numbers on screen do not reflect the room right now. Scan freshness has four usual causes, and only one of them is a fault.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Two taps seconds apart return identical RSSI</td><td>NetworkManager enforces a rescan cooldown of about 10 s on Linux</td><td>Wait out the cooldown, or accept that the second sample repeats the first scan. The survey cadence is 15 s per point for this reason.</td></tr>
+            <tr><td>Android readings plateau or repeat</td><td>The platform throttles scan results for foreground apps, and some vendors throttle harder with the screen off</td><td>Keep the screen on, keep the app in the foreground, and take the sample after a short pause rather than immediately after moving.</td></tr>
+            <tr><td>Everything looks like it did last week</td><td>The heatmap is rendered from stored readings, and the survey has not been extended since the AP configuration changed</td><td>Take 3–5 fresh points per affected floor, or re-run the survey for that floor.</td></tr>
+            <tr><td>Signal changed after you moved an AP</td><td>Old points still describe the old layout</td><td>Not a bug. Points are historical; re-survey the rooms the change affects.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>If the survey predates a channel, power or placement change, the map is a picture of the old network. Nothing recalibrates automatically, because a reading is a measurement with a timestamp, not a prediction. Comparing before and after is a legitimate use: duplicate the survey, re-walk one floor, and view both.</p>
+
+      <h2 id="import">Model import fails</h2>
+      <p>Import errors are specific. Read the message, then match it here before re-exporting anything.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Message or symptom</th><th>Cause</th><th>Fix</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Model loads on its side or is 100× too large</td><td>Up-axis and unit metadata are missing or wrong</td><td>Export as glTF/GLB with metres and Y-up, or set the axis and scale in the import confirm step.</td></tr>
+            <tr><td>Rejected for size</td><td>The upload exceeds the 150 MB cap</td><td>Decimate before export. Scan apps usually offer a "medium" or "reduced" quality that lands well under the limit.</td></tr>
+            <tr><td>Blank or untextured surfaces</td><td>The <code>.gltf</code> references <code>.bin</code> or texture files that were not included</td><td>Export a single <code>.glb</code> instead; v0.1 uploads one file and does not unpack archives.</td></tr>
+            <tr><td>"Unsupported file type" for a ZIP</td><td>Archives are rejected; only <code>.glb</code>, <code>.gltf</code> and <code>.obj</code> are accepted</td><td>Unpack the export and upload the mesh file. ZIP support is <strong>planned</strong>.</td></tr>
+            <tr><td>Polycam raw scan imports with no floor</td><td>A raw capture is a mesh in arbitrary space; floor detection needs a room-mode export</td><td>Re-export from Polycam in room mode, or place the floor plane manually in the confirm step.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>The confirm editor exists so that a bad import stops before it becomes a bad survey. Check three things before you accept: the floor count matches the building, the wall lines sit on real walls rather than on furniture edges, and the scale bar reads a distance you can verify with a tape measure. Fixing a wall there is cheap; fixing it after 120 readings is not.</p>
+
+      <h2 id="heatmap">The heatmap looks wrong</h2>
+      <p>A heatmap is an interpolation between measured points. Most "wrong" maps are under-sampled maps, or maps drawn at the wrong place.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>What you see</th><th>Likely cause</th><th>Fix</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Large smooth blobs that ignore walls</td><td>Too few points for the floor area</td><td>Add points until you have 10–15 per floor, spread across rooms rather than clustered in the doorway.</td></tr>
+            <tr><td>Strong signal in a room that is weak in reality</td><td>The AP is placed on the wrong floor in the model</td><td>Move the AP marker to the correct floor; the height difference changes every prediction on that floor.</td></tr>
+            <tr><td>Signal passes through a wall it should not</td><td>That wall is labelled as exterior, or was never classified</td><td>Open the model editor, select the wall, set it to interior with the right material.</td></tr>
+            <tr><td>Whole map is one flat colour</td><td>The floor selector is on a different storey than the one you surveyed</td><td>Check the floor picker before anything else — this one is easy to miss.</td></tr>
+            <tr><td>Map bleeds across rooms and floors</td><td>Interpolation radius set too large</td><td>Reduce the radius so that a point only influences its own room. Kriging needs at least 10 points before it is worth using.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>If the map still disagrees with what a device measures, trust the device for the single spot and trust the map for the trend. The model reports its own held-out error, typically 4–7 dB in a house with drywall and a few brick walls, and that error applies to predictions between points, not to the points themselves. <a href="heatmaps.html">Heatmaps</a> covers the difference between IDW and kriging; <a href="propagation-model.html">Propagation model</a> covers what a wall loss actually changes.</p>
+
+      <h2 id="disk">Disk is filling up</h2>
+      <p>Readings grow with time, not with the size of the building. A point stores every BSSID visible from that spot, so a dense street with many neighbouring networks costs more per point than an isolated house. A reasonable estimate is 5–10 kB per reading including indexes, which puts a five-floor house at a few megabytes — small, but not zero if you survey weekly for a year.</p>
+      <p>Two things keep it bounded today: check the size, and reclaim free pages. A per-server retention window is planned.</p>
+<pre><code class="language-bash">du -sh /var/lib/wifisurvey
+sudo -u wifisurvey sqlite3 /var/lib/wifisurvey/survey.db \
+  'PRAGMA wal_checkpoint(TRUNCATE); VACUUM;'
+</code></pre>
+      <p><code>VACUUM</code> rewrites the database file and returns space freed by deleted rows. It needs free disk equal to the database size while it runs, so do not start it on a filesystem with 20 MB left. A per-server retention window is <strong>planned</strong>; in v0.1 delete old readings deliberately (after an export) with <code>DELETE FROM readings WHERE ts &lt; ...</code>, then vacuum.</p>
+
+      <h2 id="logs">Logs and support bundles</h2>
+      <p>The journal is the primary source. Two hundred lines covers a restart plus the failed requests that follow it:</p>
+<pre><code class="language-bash">journalctl -u wifi-survey -n 200 --no-pager
+journalctl -u wifi-survey --since "1 hour ago"</code></pre>
+      <p>In v0.1 the boring checks are manual: <code>ls -l /etc/wifisurvey/config.toml</code> (mode <code>0640</code>), <code>sudo -u wifisurvey test -w /var/lib/wifisurvey</code>, <code>sqlite3 /var/lib/wifisurvey/survey.db 'PRAGMA integrity_check;'</code>, <code>systemctl status avahi-daemon</code> and <code>ss -ltnp | grep 8800</code>. A single <code>wifi-survey doctor</code> command that runs all of them is <strong>planned</strong>.</p>
+      <p>When you need to hand the problem to someone else, collect the pieces by hand. A support-bundle command is <strong>planned</strong>; today the short version is:</p>
+<pre><code class="language-bash">journalctl -u wifi-survey -n 500 --no-pager &gt; /tmp/wifi-survey.log
+sudo sed -E 's/(viewer_token|pairing_secret)[[:space:]]*=.*/\1 = "REDACTED"/' \
+  /etc/wifisurvey/config.toml &gt; /tmp/wifi-survey-config.toml</code></pre>
+      <p>Redact tokens and UniFi credentials before you send either file anywhere. Logs do not contain raw readings, but they do contain node ids and client addresses.</p>
+
+      <h2 id="reset">Reset and recovery</h2>
+      <p>Three operations cover most recovery work. They differ in how much they delete, so pick deliberately.</p>
+
+      <h3 id="reset-node-token">Reset a node token</h3>
+      <p>Revoking a token is immediate and does not touch survey data. Old readings stay attributed to the same node id, so history and fingerprints remain intact. Open the node, choose revoke, then pair again with a fresh six-digit code. Use this when a device is lost, when a token was pasted into the wrong place, or when you are re-flashing an ESP32 and want the old credential dead.</p>
+
+      <h3 id="reset-reimport">Re-import a model without losing points</h3>
+      <p>Points are stored against coordinates on a floor, not against the mesh, so a model can be replaced while the readings survive. Import the corrected model, align the floor plane to the same origin at the same scale, and confirm. If the new model is rotated or scaled differently, existing points will sit in the wrong place — realign before you accept, and check one known room against the old map. Deleting the survey and starting over is the last resort, not the first.</p>
+
+      <h3 id="reset-factory">Factory reset</h3>
+      <p>A factory reset removes the database, imported models, node registrations and the API token, and returns the configuration to defaults. It does not touch the installed binary. Take a copy of <code>/var/lib/wifisurvey</code> first if there is any chance you want the old survey; a reset is not undoable.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Item</th><th>Deleted by factory reset</th><th>Kept</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Survey readings and heatmaps</td><td>Yes</td><td>—</td></tr>
+            <tr><td>Imported models and wall edits</td><td>Yes</td><td>—</td></tr>
+            <tr><td>Node registrations and tokens</td><td>Yes</td><td>—</td></tr>
+            <tr><td>API token</td><td>Yes, regenerated</td><td>—</td></tr>
+            <tr><td>Configuration file</td><td>Reset to defaults</td><td>—</td></tr>
+            <tr><td>Installed package and unit file</td><td>No</td><td>Yes</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout limit">
+        <p class="callout-title">No remote support path</p>
+        <p>There is no crash reporting, no telemetry and no automatic upload of logs or bundles. A support bundle only leaves the machine if you copy it out yourself. That also means nobody is watching your instance for failures: if the UI is wrong, the journal is the only record, so collect it before you restart the service.</p>
+      </div>
+
+    </article>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span>Wi-Fi Survey v0.1 · public documentation</span>
+  <span class="spacer"></span>
+  <a href="privacy.html">Privacy</a>
+  <a href="contributing.html">Contributing</a>
+  <a href="changelog.html">Changelog</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

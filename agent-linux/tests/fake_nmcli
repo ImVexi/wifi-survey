@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+"""fake_nmcli - pretend to be NetworkManager's nmcli for tests.
+
+Emulates the two calls the agent makes:
+
+    nmcli -t -f DEVICE,TYPE dev
+    nmcli -t -f BSSID,SSID,CHAN,FREQ,SIGNAL dev wifi list --rescan yes|no --ifname wlan0
+
+Realism that matters for the agent:
+  * BSSIDs are emitted with ':' escaped as '\\:' (nmcli -t behaviour).
+  * SSIDs containing ':' or '\\' are escaped the same way.
+  * '--rescan yes' is rate limited: within FAKE_NM_COOLDOWN seconds of the
+    previous successful rescan it fails with
+        Error: Scanning not allowed immediately following previous scan.
+  * '--rescan no' replays the cached snapshot verbatim, so a caller can
+    detect that nothing changed.
+
+Environment:
+    FAKE_NM_STATE     dir for the cached snapshot (default /tmp/fake-nmcli-<uid>)
+    FAKE_NM_COOLDOWN  seconds between allowed rescans (default 10)
+    FAKE_NM_JITTER    max +/- dBm jitter (default 3)
+    FAKE_NM_IFACE     interface name to report (default wlan0)
+    FAKE_NM_EMPTY     set to 1 to emit zero BSSIDs
+    FAKE_NM_TRACE     file to append every invocation to (for debugging)
+"""
+
+import os
+import random
+import sys
+import time
+
+IFACE = os.environ.get("FAKE_NM_IFACE", "wlan0")
+STATE_DIR = os.environ.get("FAKE_NM_STATE", "/tmp/fake-nmcli-%d" % os.getuid())
+COOLDOWN = float(os.environ.get("FAKE_NM_COOLDOWN", "10"))
+JITTER = int(os.environ.get("FAKE_NM_JITTER", "3"))
+CACHE = os.path.join(STATE_DIR, "snapshot.tsv")
+
+# bssid, ssid, channel, freq, base signal %
+NETWORKS = [
+    ("AA:BB:CC:11:22:01", "home",              6,   2437, 74),
+    ("AA:BB:CC:11:22:02", "home",            149,   5745, 61),
+    ("AA:BB:CC:11:22:03", "home-iot",          1,   2412, 52),
+    ("AA:BB:CC:11:22:04", "Cafe:Free",        11,   2462, 44),
+    ("AA:BB:CC:11:22:05", "Cafe\\Lounge",     36,   5180, 33),
+    ("AA:BB:CC:11:22:06", "",                  3,   2422, 22),
+    ("AA:BB:CC:11:22:07", "Neighbor_5G",      44,   5220, 28),
+    ("AA:BB:CC:11:22:08", "Neighbor_2G",       9,   2452, 18),
+    ("AA:BB:CC:11:22:09", "neighbor-net",      6,   2437, 40),
+    ("AA:BB:CC:11:22:0A", "eduroam",          40,   5200, 47),
+    ("AA:BB:CC:11:22:0B", "6GHz-Lab",         37,   6135, 57),
+    ("AA:BB:CC:11:22:0C", "Printer Direct",  157,   5785, 12),
+]
+
+
+def esc(value):
+    return value.replace("\\", "\\\\").replace(":", "\\:")
+
+
+def emit_snapshot():
+    lines = []
+    for bssid, ssid, chan, freq, base in NETWORKS:
+        pct = max(1, min(100, base + random.randint(-JITTER, JITTER)))
+        lines.append(
+            "%s:%s:%d:%d MHz:%d" % (esc(bssid), esc(ssid), chan, freq, pct)
+        )
+    return "\n".join(lines) + "\n"
+
+
+def main(argv):
+    args = list(argv[1:])
+    trace = os.environ.get("FAKE_NM_TRACE")
+    if trace:
+        with open(trace, "a") as fh:
+            fh.write("%.3f %s\n" % (time.time(), " ".join(argv[1:])))
+
+    # nmcli -t -f DEVICE,TYPE dev
+    if "dev" in args and "wifi" not in args:
+        print("%s:wifi" % IFACE)
+        return 0
+
+    # nmcli ... dev wifi list --rescan yes|no --ifname X
+    if "dev" in args and "wifi" in args and "list" in args:
+        rescan = "yes"
+        if "--rescan" in args:
+            i = args.index("--rescan")
+            if i + 1 < len(args):
+                rescan = args[i + 1]
+
+        os.makedirs(STATE_DIR, exist_ok=True)
+
+        if os.environ.get("FAKE_NM_EMPTY") == "1":
+            return 0
+
+        if rescan == "yes":
+            last = 0.0
+            if os.path.exists(CACHE):
+                last = os.path.getmtime(CACHE)
+            if time.time() - last < COOLDOWN:
+                sys.stderr.write(
+                    "Error: Scanning not allowed immediately following previous scan.\n"
+                )
+                return 1
+            snap = emit_snapshot()
+            with open(CACHE, "w") as fh:
+                fh.write(snap)
+            sys.stdout.write(snap)
+            return 0
+
+        # --rescan no: cached list, byte identical
+        if os.path.exists(CACHE):
+            with open(CACHE) as fh:
+                sys.stdout.write(fh.read())
+            return 0
+        snap = emit_snapshot()
+        with open(CACHE, "w") as fh:
+            fh.write(snap)
+        sys.stdout.write(snap)
+        return 0
+
+    sys.stderr.write("fake_nmcli: unsupported invocation: %s\n" % " ".join(argv[1:]))
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

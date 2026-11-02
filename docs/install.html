@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install — Wi-Fi Survey docs</title>
+<meta name="description" content="Install Wi-Fi Survey on Debian, Ubuntu, Fedora or Arch: requirements, installer flags, the files it creates, mDNS naming, Docker, upgrades and uninstall.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body data-page="install">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle navigation">☰ <span>Menu</span></button>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="brand-tag">docs</span></a>
+  <div class="search" role="search">
+    <input id="searchInput" type="search" placeholder="Search docs…  ( / )" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <noscript>
+      <div class="nav-group">
+        <p class="nav-group-title">Chapters</p>
+        <ul class="nav-list">
+          <li><a class="nav-link" href="index.html">Overview</a></li>
+          <li><a class="nav-link" href="install.html">Install</a></li>
+          <li><a class="nav-link" href="quickstart.html">Quickstart</a></li>
+          <li><a class="nav-link" href="concepts.html">Concepts</a></li>
+          <li><a class="nav-link" href="scanner-nodes.html">Scanner nodes</a></li>
+          <li><a class="nav-link" href="model-import.html">3D model import</a></li>
+          <li><a class="nav-link" href="survey.html">Running a survey</a></li>
+          <li><a class="nav-link" href="heatmaps.html">Heatmaps</a></li>
+          <li><a class="nav-link" href="propagation-model.html">Propagation model</a></li>
+          <li><a class="nav-link" href="position.html">Live position</a></li>
+          <li><a class="nav-link" href="unifi.html">UniFi integration</a></li>
+          <li><a class="nav-link" href="tuning.html">Tuning recommendations</a></li>
+          <li><a class="nav-link" href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a class="nav-link" href="faq.html">FAQ</a></li>
+          <li><a class="nav-link" href="privacy.html">Privacy</a></li>
+          <li><a class="nav-link" href="contributing.html">Contributing</a></li>
+          <li><a class="nav-link" href="changelog.html">Changelog</a></li>
+        </ul>
+        <p class="nojs-note">JavaScript is off: this list is the full chapter index, but in-page search, the table of contents and the copy buttons are unavailable.</p>
+      </div>
+    </noscript>
+  </aside>
+
+  <main class="content" id="main">
+    <article>
+
+      <h1>Install</h1>
+      <p class="lede">Wi-Fi Survey installs as one systemd service on a Linux host that sits on the same LAN as your access points. The installer creates an isolated Python environment, a service account, a config file and a SQLite database, then prints the URL and the access token you need for the first login.</p>
+      <p class="meta"><span>v0.1</span><span>~9 min read</span></p>
+
+      <h2 id="requirements">What you need</h2>
+      <p>The server does the arithmetic and stores the readings; it needs no Wi-Fi adapter of its own. A mini PC, an old laptop or a small VM is enough. You need root on that machine and LAN reachability from the devices you survey with.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Requirement</th><th>Minimum</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Operating system</td><td>Debian 12, Ubuntu 22.04, Fedora 39, Arch</td><td>Any systemd distribution with a recent Python usually works; these four are the ones tested for each release.</td></tr>
+            <tr><td>Python</td><td>3.11 or newer</td><td>The installer builds a virtual environment under <code>/opt/wifi-survey</code> and leaves the system Python packages alone.</td></tr>
+            <tr><td>CPU and RAM</td><td>1 vCPU, 1 GB</td><td>Kriging a 10 m by 10 m floor at 25 cm resolution is the heaviest job and finishes in a few seconds.</td></tr>
+            <tr><td>Disk</td><td>500 MB free</td><td>Plus roughly 5–20 MB per imported 3D model and a few megabytes per survey.</td></tr>
+            <tr><td>Init system</td><td>systemd</td><td>Used for the unit, the unprivileged service account and log collection.</td></tr>
+            <tr><td>Network</td><td>One open TCP port</td><td>8800 by default, reachable from the LAN. Outbound access is needed during install, not afterwards.</td></tr>
+            <tr><td>Browser</td><td>Current Firefox, Chrome, Safari or Edge</td><td>WebGL is required for the 3D floor plan view.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>No GPU, cloud account, DNS record, TLS certificate or container runtime is required. To run it as a container instead, skip to <a href="#docker">Docker</a>.</p>
+
+      <h2 id="install-script">Run the installer</h2>
+      <p>Clone the repository, read the script — it is a few hundred lines of shell and worth ten minutes of your time — then run it as root. The script checks for Python, creates the service account, writes the unit and takes the token from a fresh random seed.</p>
+<pre><code class="language-bash">git clone https://github.com/jpullen724-stack/wifi-survey.git
+cd wifi-survey
+less installer/install.sh
+sudo installer/install.sh
+</code></pre>
+      <p>An empty prompt is fine on a first install: press Enter to accept the default port and mDNS name. Everything the script asks can also be set as a flag:</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Flag</th><th>Default</th><th>What it changes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>--port N</code></td><td>8800</td><td>HTTP port for the UI and the REST API. Pick something free if 8800 is taken.</td></tr>
+            <tr><td><code>--host H</code></td><td>0.0.0.0</td><td>Bind address. Use <code>127.0.0.1</code> when a reverse proxy on the same host is the only client.</td></tr>
+            <tr><td><code>--hostname NAME</code></td><td>survey</td><td>mDNS name, so the server answers as <code>NAME.local</code>. Use lowercase letters, digits and hyphens.</td></tr>
+            <tr><td><code>--no-mdns</code></td><td>mDNS on</td><td>Skips the avahi record and the <code>/etc/avahi/hosts</code> alias. Use it on hosts where avahi is absent or managed elsewhere.</td></tr>
+            <tr><td><code>--data-dir PATH</code></td><td>/var/lib/wifisurvey</td><td>Moves <code>survey.db</code> and <code>models/</code>, for example onto a larger volume.</td></tr>
+            <tr><td><code>--config PATH</code></td><td>/etc/wifisurvey/config.toml</td><td>Config file location. A user install outside systemd can keep it under <code>$XDG_CONFIG_HOME/wifisurvey/config.toml</code> instead.</td></tr>
+            <tr><td><code>--non-interactive</code></td><td>off</td><td>Accepts every default and never prompts. Useful in provisioning scripts; combine it with the flags above.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The script is idempotent: running it again on an installed host repairs the unit and the virtual environment instead of creating a second copy. It never overwrites an existing config, token or database.</p>
+
+      <h2 id="what-it-creates">What the installer creates</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Path</th><th>Purpose</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>/opt/wifi-survey</code></td><td>Application code, the Python virtual environment and the <code>wifi-survey</code> command line entry point.</td></tr>
+            <tr><td><code>/etc/wifisurvey/config.toml</code></td><td>Host, port, data directory, viewer token, pairing secret and UniFi settings. Mode <code>0640</code>, owned by root and readable by the <code>wifisurvey</code> group. Read once at startup.</td></tr>
+            <tr><td><code>/var/lib/wifisurvey/survey.db</code></td><td>SQLite database in WAL mode: models, floors, APs, nodes, readings and pairing codes.</td></tr>
+            <tr><td><code>/var/lib/wifisurvey/models/</code></td><td>Imported and converted 3D models, one directory per model.</td></tr>
+            <tr><td><code>/etc/systemd/system/wifi-survey.service</code></td><td>The unit that runs the FastAPI server as the <code>wifisurvey</code> user.</td></tr>
+            <tr><td>user <code>wifisurvey</code></td><td>Unprivileged system account. It owns the data directory and nothing else.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Backups are a copy of <code>survey.db</code> plus <code>models/</code>. There is no second database, no cache to rebuild and no migration tool to run by hand.</p>
+
+      <h2 id="port-and-name">Port and name</h2>
+      <p>After a successful install the unit is enabled and started. Open <code>http://survey.local:8800</code> if avahi is running on your network, or <code>http://&lt;SERVER_IP&gt;:8800</code> if it is not. The token printed at the end of the install is the <code>[security] viewer_token</code> in <code>/etc/wifisurvey/config.toml</code>; the UI asks for it once and keeps it in the browser's localStorage.</p>
+      <p>Check the service before you troubleshoot anything else:</p>
+<pre><code class="language-bash">systemctl status wifi-survey
+ss -ltnp | grep 8800          # confirm the listener and the bound address
+journalctl -u wifi-survey -n 50 --no-pager
+</code></pre>
+      <p>To change the port or the name later, edit <code>/etc/wifisurvey/config.toml</code>, then <code>sudo systemctl restart wifi-survey</code>. The mDNS name is published through avahi, so a renamed host needs <code>sudo systemctl restart avahi-daemon</code> as well.</p>
+
+      <div class="callout tip">
+        <p class="callout-title">Save the token now</p>
+        <p>The token is shown once and lives in <code>config.toml</code>, not in the database. Put it in your password manager before you close the terminal: the UI keeps it per browser, so every new browser asks for it again.</p>
+      </div>
+
+      <p><strong>Firewall.</strong> Allow TCP 8800 from your LAN only. If you rely on <code>survey.local</code>, also allow UDP 5353 for mDNS — blocking it leaves the IP address working and the name silently broken. With <code>firewalld</code> the rule is <code>firewall-cmd --add-port=8800/tcp --permanent</code> followed by a reload.</p>
+
+      <div class="callout limit">
+        <p class="callout-title">Known limitation</p>
+        <p>The server installer targets Linux with systemd. Windows and macOS hosts, and distributions that use another init system, are not supported in v0.1 — the unit file and the service account are part of the install. There is also no published container image: build it locally from <code>installer/Dockerfile</code>. The scanner agents have their own limits, listed in <a href="scanner-nodes.html">Scanner nodes</a>.</p>
+      </div>
+
+      <h2 id="first-agent">Pair your first scanner</h2>
+      <p>A fresh install has no nodes, so nothing can post readings yet. Pairing takes one command on the server and one on the device that will scan; the JSON it posts is documented in <a href="scanner-nodes.html#pairing">Scanner nodes</a>.</p>
+      <ol class="steps">
+        <li>
+          <strong>Start the agent on the scanning machine</strong>
+          <p>On a Linux laptop run <code>agent-linux/install.sh</code>: it copies one stdlib-only Python file, pairs it and can install a systemd user unit. There is nothing to <code>pip install</code>. On Android use the Termux script instead. Nothing listens on the node; it only posts outbound, plus a status page on <code>127.0.0.1:8790</code>.</p>
+        </li>
+        <li>
+          <strong>Ask the server for a pairing code</strong>
+          <p>Run <code>sudo -u wifisurvey -H /opt/wifi-survey/venv/bin/wifi-survey pair</code> on the server. You get a six-digit single-use code and the claim endpoint to call. The code expires after ten minutes.</p>
+        </li>
+        <li>
+          <strong>Claim the code from the node</strong>
+          <p>The agent calls <code>POST /api/v1/pair</code> with <code>{"code","node_id","node_type"}</code>. The server answers with a per-node token; the code is burned on first successful use, so a second attempt with the same code is rejected.</p>
+        </li>
+        <li>
+          <strong>Confirm the node is posting</strong>
+          <p>The node appears under <em>Nodes</em> with a green heartbeat and its last reading timestamp. Take one sample and watch the count increase before you start walking.</p>
+        </li>
+      </ol>
+
+      <div class="callout warn">
+        <p class="callout-title">Do not expose this to the internet</p>
+        <p>The access token is the only authentication and the server speaks plain HTTP by default. Anyone who reaches port 8800 and reads the token has full control of your survey data and your AP tuning history. Keep it on the LAN, or reach it through a VPN or a reverse proxy that terminates TLS and adds its own authentication.</p>
+      </div>
+
+      <h2 id="docker">Docker alternative</h2>
+      <p>There is no published container image yet: the compose file in <code>installer/</code> builds the image locally from the same source. It runs the same server with the same data layout, so two volume mounts are all you need:</p>
+<pre><code class="language-bash">cd installer
+docker compose up -d --build
+docker compose logs -f          # first boot prints the viewer token
+</code></pre>
+      <p>The compose file publishes <code>8800</code>, mounts <code>./config</code> at <code>/etc/wifisurvey</code> and <code>./data</code> at <code>/var/lib/wifisurvey</code>, and sets <code>WIFISURVEY_*</code> for host, port and data directory. If <code>config/config.toml</code> does not exist the entrypoint generates one with a fresh <code>viewer_token</code> and <code>pairing_secret</code>, prints the viewer token to the container log, and never replaces it on later starts.</p>
+      <div class="callout note">
+        <p class="callout-title">mDNS in containers</p>
+        <p>avahi inside a bridged container cannot announce on your LAN, so <code>survey.local</code> will not resolve. Either use <code>network_mode: host</code> or simply point clients at <code>http://&lt;SERVER_IP&gt;:8800</code>. Pairing and the API work the same either way.</p>
+      </div>
+
+      <h2 id="upgrade">Upgrade</h2>
+      <p>Upgrades are in place. Take a copy of the database first — migrations are automatic and one-way, so a rollback means restoring the file you saved.</p>
+<pre><code class="language-bash">sudo systemctl stop wifi-survey
+sudo cp /var/lib/wifisurvey/survey.db /var/lib/wifisurvey/survey.db.bak
+cd wifi-survey &amp;&amp; git pull
+sudo installer/install.sh --upgrade
+</code></pre>
+      <p>The script rebuilds the virtual environment, runs pending schema migrations inside a transaction and restarts the unit. A failed migration leaves the database at its previous version and the service stopped, with the error in <code>journalctl -u wifi-survey</code>.</p>
+
+      <h2 id="uninstall">Uninstall</h2>
+      <p>The same script reverses the install. It stops and disables the unit, removes <code>/opt/wifi-survey</code> and the unit file, and asks before deleting configuration and data.</p>
+<pre><code class="language-bash">sudo installer/install.sh --uninstall          # keeps /etc and /var/lib after confirmation prompts
+sudo installer/install.sh --uninstall --purge  # also deletes config, database and models
+</code></pre>
+      <p>With <code>--purge</code> there is nothing left to recover: <code>/opt</code>, <code>/etc/wifisurvey</code> and <code>/var/lib/wifisurvey</code> are all gone, and the <code>wifisurvey</code> user is removed. Copy <code>survey.db</code> somewhere else first if the survey took you an afternoon.</p>
+
+      <h2 id="next-steps">Where to go next</h2>
+      <div class="grid cards">
+        <a class="card" href="quickstart.html">
+          <span class="card-title">Quickstart →</span>
+          <p>Five steps to a first heatmap.</p>
+        </a>
+        <a class="card" href="scanner-nodes.html">
+          <span class="card-title">Scanner nodes →</span>
+          <p>Laptop, Android and ESP32 compared.</p>
+        </a>
+        <a class="card" href="troubleshooting.html">
+          <span class="card-title">Troubleshooting →</span>
+          <p>Service, port, token, missing node.</p>
+        </a>
+      </div>
+
+    </article>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span>Wi-Fi Survey v0.1 · public documentation</span>
+  <span class="spacer"></span>
+  <a href="privacy.html">Privacy</a>
+  <a href="contributing.html">Contributing</a>
+  <a href="changelog.html">Changelog</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

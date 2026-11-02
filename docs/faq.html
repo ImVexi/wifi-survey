@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FAQ — Wi-Fi Survey docs</title>
+<meta name="description" content="Short answers about Wi-Fi Survey: hardware requirements, supported access points, data storage and export, map accuracy, offline operation and licence questions.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body data-page="faq">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle navigation">☰ <span>Menu</span></button>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="brand-tag">docs</span></a>
+  <div class="search" role="search">
+    <input id="searchInput" type="search" placeholder="Search docs…  ( / )" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <noscript>
+      <div class="nav-group">
+        <p class="nav-group-title">Chapters</p>
+        <ul class="nav-list">
+          <li><a class="nav-link" href="index.html">Overview</a></li>
+          <li><a class="nav-link" href="install.html">Install</a></li>
+          <li><a class="nav-link" href="quickstart.html">Quickstart</a></li>
+          <li><a class="nav-link" href="concepts.html">Concepts</a></li>
+          <li><a class="nav-link" href="scanner-nodes.html">Scanner nodes</a></li>
+          <li><a class="nav-link" href="model-import.html">3D model import</a></li>
+          <li><a class="nav-link" href="survey.html">Running a survey</a></li>
+          <li><a class="nav-link" href="heatmaps.html">Heatmaps</a></li>
+          <li><a class="nav-link" href="propagation-model.html">Propagation model</a></li>
+          <li><a class="nav-link" href="position.html">Live position</a></li>
+          <li><a class="nav-link" href="unifi.html">UniFi integration</a></li>
+          <li><a class="nav-link" href="tuning.html">Tuning recommendations</a></li>
+          <li><a class="nav-link" href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a class="nav-link" href="faq.html">FAQ</a></li>
+          <li><a class="nav-link" href="privacy.html">Privacy</a></li>
+          <li><a class="nav-link" href="contributing.html">Contributing</a></li>
+          <li><a class="nav-link" href="changelog.html">Changelog</a></li>
+        </ul>
+        <p class="nojs-note">JavaScript is off: this list is the full chapter index, but in-page search, the table of contents and the copy buttons are unavailable.</p>
+      </div>
+    </noscript>
+  </aside>
+
+  <main class="content" id="main">
+    <article>
+
+      <h1>FAQ</h1>
+      <p class="lede">Short answers to the questions that come up before and after a first survey. Each answer links to the chapter that covers the detail; if your question is about something broken rather than something unclear, start with <a href="troubleshooting.html">Troubleshooting</a>.</p>
+      <p class="meta"><span>v0.1</span><span>~6 min read</span></p>
+
+      <h2 id="general">General</h2>
+
+      <details>
+        <summary>Do I need UniFi gear, or does it work with Omada, Eero and consumer routers?</summary>
+        <p>No. Wi-Fi Survey is vendor-neutral: the survey itself only needs a device that reports BSSIDs and RSSI, which every laptop and phone does. UniFi is an optional read-only integration that adds AP inventory and radio configuration; without it you place access points on the map by hand. Omada, Eero, consumer routers and mixed setups all work for surveying, and you can record AP details manually. See <a href="unifi.html">UniFi integration</a> for what the integration does and does not read.</p>
+      </details>
+
+      <details>
+        <summary>How many access points can it handle?</summary>
+        <p>A single instance comfortably covers a home or a small office with a handful of APs. Each survey point can hold every BSSID it sees, and the propagation model is computed per AP and per floor, so the practical limit is your patience for walking rather than a hard cap in the code. Very large sites are out of scope for v0.1 — there is no multi-site management and no controller-scale inventory. <a href="concepts.html">Concepts</a> explains how APs are attached to a survey.</p>
+      </details>
+
+      <details>
+        <summary>Does it run on a Raspberry Pi?</summary>
+        <p>Yes. A Raspberry Pi 4 with 4 GB of RAM is enough for up to about five floors: the server is a small FastAPI process with SQLite, and heatmap interpolation is the heaviest work it does. Importing a large model and rendering kriging on a big floor is where a Pi feels slow, not during a survey. Install it like any other Debian-family host — see <a href="install.html">Install</a> — and expect the model import step to take noticeably longer than on a desktop.</p>
+      </details>
+
+      <h2 id="hardware">Hardware</h2>
+
+      <details>
+        <summary>Which phone or laptop should I use as a scanner?</summary>
+        <p>Any Linux laptop with NetworkManager is the best scanner, because the agent reads real scan results without platform throttling. Android works well through Termux and is the most convenient for walking around. iPhones are not supported as nodes. The device that surveys does not have to be the device that views the map — the UI runs in any modern browser. <a href="scanner-nodes.html">Scanner nodes</a> compares the three node types.</p>
+      </details>
+
+      <details>
+        <summary>Does the phone need to be rooted?</summary>
+        <p>No. The Android node uses the standard scan results the platform exposes to apps, which needs no root and no special permissions beyond location, since Android gates Wi-Fi scanning behind it. The trade-off is that Android throttles scans and returns cached results more aggressively than Linux, so points take a little longer to settle. Root would allow raw monitor-mode captures, which this tool does not use.</p>
+      </details>
+
+      <details>
+        <summary>How far does an ESP32 node reach?</summary>
+        <p>An ESP32 node is a 2.4 GHz scanner only, so treat it as a fixed sensor for one band rather than a walking survey tool. It is useful for a permanent check on one room or for confirming a dead spot, not for mapping a floor. Its antenna is small and its sensitivity is worse than a laptop's, so its absolute dBm values are not directly comparable with other node types. See <a href="scanner-nodes.html">Scanner nodes</a> for the capabilities of each type.</p>
+      </details>
+
+      <h2 id="data">Data</h2>
+
+      <details>
+        <summary>Where is my data stored?</summary>
+        <p>Everything lives in <code>/var/lib/wifisurvey</code> on the machine you installed it on: <code>survey.db</code> for readings, APs and nodes, and <code>models/</code> for imported geometry. Configuration is a separate file at <code>/etc/wifisurvey/config.toml</code> (mode <code>0640</code>); the viewer token and pairing secret are inside it under <code>[security]</code>. Nothing is written anywhere else and nothing is uploaded. <a href="privacy.html">Privacy</a> lists every field that is kept.</p>
+      </details>
+
+      <details>
+        <summary>Can I export a survey, and in what format?</summary>
+        <p>Not yet. CSV and JSON export from the survey page are <strong>planned</strong>: CSV one row per BSSID observation with timestamp, floor and position, JSON the nested schema the agents post with. In v0.1 the data is in SQLite, so <code>sqlite3 /var/lib/wifisurvey/survey.db</code> (or a copy of the file) is the export path. Models are never part of an export; copy <code>models/</code> if you need the geometry.</p>
+      </details>
+
+      <details>
+        <summary>Can I delete a survey, and do I need my own backups?</summary>
+        <p>Deleting a survey removes its readings, its heatmap cache and any AP placements attached to it, immediately and without a recycle bin. You do need your own backups: there is no cloud copy and no automatic snapshot. Stopping the service and copying <code>survey.db</code> plus <code>models/</code> gives you a consistent backup, since the database runs in WAL mode. See <a href="privacy.html">Privacy</a> for what a delete leaves behind.</p>
+      </details>
+
+      <h2 id="accuracy">Accuracy</h2>
+
+      <details>
+        <summary>Why doesn't the heatmap match my speed test?</summary>
+        <p>Signal strength is not throughput. A heatmap predicts RSSI, and RSSI says nothing about your internet plan, your AP's backhaul, channel congestion, airtime sharing or the speed of the server you tested against. A room at −65 dBm can be fast on an idle 80 MHz channel and slow at 8 pm. Use the map to find coverage and roaming problems, and a throughput test to measure bandwidth. <a href="heatmaps.html">Heatmaps</a> explains what each view actually shows.</p>
+      </details>
+
+      <details>
+        <summary>Why is 5 GHz so much shorter than 2.4 GHz?</summary>
+        <p>Higher frequency means more free-space loss and worse penetration through walls and floors — the model uses 40.2 dB at 1 m for 2.4 GHz against 46.4 dB at 5 GHz, and every wall adds more on 5 GHz. That is physics, not a fault in the AP. The practical result is that 5 GHz covers a room well and dies at the far end of a floor, which is exactly what a per-band heatmap is for. See <a href="propagation-model.html">Propagation model</a>.</p>
+      </details>
+
+      <details>
+        <summary>Why does my phone show a different dBm than my laptop?</summary>
+        <p>Different radios, different antennas and different drivers. A phone held in your hand is also detuned by your body, and Android reports rounded values from a cached scan. Absolute numbers therefore differ by several dB between devices, and the survey converts NetworkManager's percentage scale to dBm with a fixed formula that is only accurate to about ±3 dB. Compare trends within one device rather than across two. <a href="scanner-nodes.html">Scanner nodes</a> covers the details.</p>
+      </details>
+
+      <h2 id="operations">Operations</h2>
+
+      <details>
+        <summary>Does it need an internet connection?</summary>
+        <p>No. Installation needs to fetch packages once, and after that the server, the UI and the agents all run on the LAN. There is no licence check, no update ping and no telemetry. The docs site is static files with no CDN, so it works offline too. The one exception is the optional UniFi integration, which talks to your controller on the local network and never to the internet.</p>
+      </details>
+
+      <details>
+        <summary>Can I expose it to the internet?</summary>
+        <p>Not recommended. There is no TLS by default, authentication is a single bearer token, and the presumed security boundary is the LAN. Port forwarding puts a plaintext admin interface on the public internet. If you need remote access, put it behind a VPN you already trust — WireGuard or your router's built-in server — and leave the survey port closed from outside. <a href="privacy.html">Privacy</a> describes the listeners and what they require.</p>
+      </details>
+
+      <details>
+        <summary>Can I use it for more than one house?</summary>
+        <p>Not in v0.1. The server holds one model with its floors, APs and readings; separate surveys with per-survey export and delete are <strong>planned</strong>. Multi-site management — per-site users, a central roll-up, remote agent enrolment across networks — is further out. <a href="survey.html">Running a survey</a> describes the intended model.</p>
+      </details>
+
+      <details>
+        <summary>How do upgrades work, and what licence is it under?</summary>
+        <p>Upgrades are manual: pull the repository, run <code>installer/install.sh --upgrade</code>, and it repairs the virtual environment, runs pending schema migrations in a transaction and restarts the unit. Check the result with <code>systemctl status wifi-survey</code> and <code>journalctl -u wifi-survey</code>; a <code>wifi-survey doctor</code> command is planned. The licence is MIT — see <code>LICENSE</code> in the repository. <a href="changelog.html">Changelog</a> lists what changed between versions.</p>
+      </details>
+
+      <div class="callout limit">
+        <p class="callout-title">Not supported in v0.1</p>
+        <p>iOS as a scanner node, a Windows or macOS server install, cloud sync and multi-site management are all absent. 6 GHz works only where the adapter and driver report it. If a question here assumes one of them, the honest answer is that it does not exist yet — see <a href="changelog.html">Changelog</a> for what is planned rather than shipped.</p>
+      </div>
+
+    </article>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span>Wi-Fi Survey v0.1 · public documentation</span>
+  <span class="spacer"></span>
+  <a href="privacy.html">Privacy</a>
+  <a href="contributing.html">Contributing</a>
+  <a href="changelog.html">Changelog</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

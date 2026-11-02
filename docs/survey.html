@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Running a survey — Wi-Fi Survey docs</title>
+<meta name="description" content="Place access points, click where you stand, take 15-second samples and cover a floor properly. Point counts by floor size, recording tips, redoing points and staleness.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body data-page="survey">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle navigation">☰ <span>Menu</span></button>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="brand-tag">docs</span></a>
+  <div class="search" role="search">
+    <input id="searchInput" type="search" placeholder="Search docs…  ( / )" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <noscript>
+      <div class="nav-group">
+        <p class="nav-group-title">Chapters</p>
+        <ul class="nav-list">
+          <li><a class="nav-link" href="index.html">Overview</a></li>
+          <li><a class="nav-link" href="install.html">Install</a></li>
+          <li><a class="nav-link" href="quickstart.html">Quickstart</a></li>
+          <li><a class="nav-link" href="concepts.html">Concepts</a></li>
+          <li><a class="nav-link" href="scanner-nodes.html">Scanner nodes</a></li>
+          <li><a class="nav-link" href="model-import.html">3D model import</a></li>
+          <li><a class="nav-link" href="survey.html">Running a survey</a></li>
+          <li><a class="nav-link" href="heatmaps.html">Heatmaps</a></li>
+          <li><a class="nav-link" href="propagation-model.html">Propagation model</a></li>
+          <li><a class="nav-link" href="position.html">Live position</a></li>
+          <li><a class="nav-link" href="unifi.html">UniFi integration</a></li>
+          <li><a class="nav-link" href="tuning.html">Tuning recommendations</a></li>
+          <li><a class="nav-link" href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a class="nav-link" href="faq.html">FAQ</a></li>
+          <li><a class="nav-link" href="privacy.html">Privacy</a></li>
+          <li><a class="nav-link" href="contributing.html">Contributing</a></li>
+          <li><a class="nav-link" href="changelog.html">Changelog</a></li>
+        </ul>
+        <p class="nojs-note">JavaScript is off: this list is the full chapter index, but in-page search, the table of contents and the copy buttons are unavailable.</p>
+      </div>
+    </noscript>
+  </aside>
+
+  <main class="content" id="main">
+    <article>
+
+      <h1>Running a survey</h1>
+      <p class="lede">A survey is a sequence of measured points. Each one is a 15-second sample taken where you clicked on the plan, and the quality of everything downstream is decided here: which access points are modeled, and where you chose to stand.</p>
+      <p class="meta"><span>v0.1</span><span>~7 min read</span></p>
+
+      <div class="callout limit">
+        <p class="callout-title">Planned — not in v0.1</p>
+        <p>Guided survey walking is not implemented yet. v0.1 accepts and stores readings from a paired node using the position the agent sends, and lists recent scans. The survey screen described here — resume a run, place the pin, sample, pause/cancel/redo and blind scoring — is the intended design, not current behaviour.</p>
+      </div>
+
+      <h2 id="before">Before you start</h2>
+      <p>Five things have to be true before the first point. Each is quick to check now and annoying to discover an hour later.</p>
+      <ul>
+        <li><strong>Model imported and confirmed.</strong> The walls in the model are the walls it charges loss for. A wardrobe still in the plan makes every reading disagree with the map.</li>
+        <li><strong>Access points placed.</strong> Band, channel, width and power must match what the radios are configured with; stale settings compare two different networks.</li>
+        <li><strong>Node paired.</strong> It shows under Nodes with a recent last-seen time. See <a href="scanner-nodes.html">Scanner nodes</a> for each type.</li>
+        <li><strong>Clock synced.</strong> Server and node both on NTP. Timestamps order samples and decide staleness, so a node an hour behind produces a survey that lies about its age.</li>
+        <li><strong>One floor at a time.</strong> A sample belongs to a floor; switching mid-pass is how points land on the wrong level.</li>
+      </ul>
+      <p>The server listens on <code>http://survey.local:8800</code> and serves UI and API from the same origin, so a node on the LAN needs no second hostname and no CORS exception.</p>
+
+      <h2 id="place-aps">Placing access points</h2>
+      <p>Open <em>APs</em> and add one row per radio. A dual-band AP is two rows sharing a position, because channel and power are set per radio.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Field</th><th>What it means</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>x</code>, <code>y</code></td><td>Position in metres in model coordinates</td><td>Click the plan to fill both; typed values are rounded to 1 cm</td></tr>
+            <tr><td><code>floor</code></td><td>Floor index, 0 = lowest</td><td>APs on a floor you have not modeled cannot be placed</td></tr>
+            <tr><td><code>height</code></td><td>Mounting height above the floor</td><td>1.5–2.5 m; ceiling AP 2.4 m, desk unit 1.0 m</td></tr>
+            <tr><td><code>band</code></td><td>2.4 or 5 GHz</td><td>One row per band</td></tr>
+            <tr><td><code>channel</code></td><td>Operating channel</td><td>Must match the radio, not the plan</td></tr>
+            <tr><td><code>width</code></td><td>Channel width in MHz</td><td>20, 40 or 80; a 20 MHz channel on an 80 MHz radio models the wrong noise floor</td></tr>
+            <tr><td><code>tx_power</code></td><td>Transmit power in dBm</td><td>Whatever the radio reports, not the regulatory maximum</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Manual entry is the default and the only option for hardware the tool cannot log into. The UniFi import reads APs, radios, channels and widths from the controller — see <a href="unifi.html">UniFi import</a>. Imported rows are ordinary rows: correct anything the controller reports wrongly, because the survey trusts the table, not the controller.</p>
+      <p>Every edit creates a placement revision, and each survey records the one it was taken against. Move an AP and both maps stay readable: the old one still describes the network it measured, and the pair becomes a before-and-after.</p>
+
+      <h2 id="im-here">The I'm-here flow</h2>
+      <p>Position comes from one input: you. There is no inertial tracking and no assumption that you walked in a straight line from the previous point, so the tool cannot notice that you went into the kitchen instead of the hall.</p>
+      <ol class="steps">
+        <li><strong>Select the floor.</strong> The plan shows only the level you are surveying.</li>
+        <li><strong>Click your position.</strong> A marker appears with its coordinates; drag it if the click landed badly.</li>
+        <li><strong>Confirm.</strong> The node starts sampling immediately. A wrong position is free to fix before confirming and expensive afterwards.</li>
+        <li><strong>Watch the sample.</strong> The panel counts scans and lists BSSIDs as they arrive. If the count stays at zero, the node is not scanning — check its status rather than waiting.</li>
+        <li><strong>Repeat.</strong> Walk 2–3 m, click, confirm. The point list grows with RSSI for the strongest AP at each spot.</li>
+      </ol>
+
+      <h2 id="sample">What a sample is</h2>
+      <p>Fifteen seconds of scans, not a single reading. The window exists because a scan pass takes time: <code>nmcli</code> enforces roughly 10 s between rescans, so 15 s buys one full pass, sometimes two, across the channel list. Shorter windows risk a sample built from a scan that started before you arrived.</p>
+      <p>Each scan reports BSSID, SSID, band, channel, centre frequency and RSSI in dBm. Nodes that only expose a percentage are converted on the server: <code>dBm = -100 + 0.6 × pct</code>, clipped at −40, with about ±3 dB of assumed error — which is why a percentage-only node yields a coarser map.</p>
+
+<pre><code class="language-bash">curl -sS -X POST http://survey.local:8800/api/v1/readings \
+  -H "Authorization: Bearer &lt;YOUR_TOKEN&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "node_id": "node-laptop-01",
+    "ts": "2026-03-14T18:22:05Z",
+    "position": {"x": 4.1, "y": 2.7, "floor": 0},
+    "samples": [
+      {"bssid": "bssid-one", "ssid": "example", "band": "5",
+       "channel": 36, "freq_mhz": 5180, "rssi": -58},
+      {"bssid": "bssid-two", "ssid": "example", "band": "2.4",
+       "channel": 6, "freq_mhz": 2437, "rssi": -71}
+    ]
+  }'
+</code></pre>
+
+      <p>The UI posts to the same endpoint, so a script that sends readings is indistinguishable from a node. One sample carries many BSSIDs on purpose: a single position measures every AP audible there.</p>
+
+            <div class="callout tip">
+        <p class="callout-title">Two passes beat one long walk</p>
+        <p>Do a coarse first pass — one point per room, five minutes — then open the heatmap and let it tell you where it is guessing. The second pass only densifies those areas. Walking a whole floor at full density before looking at any output usually means re-walking the wrong places.</p>
+      </div>
+
+<h2 id="coverage">How many points</h2>
+      <p>Ten to fifteen points per floor is the minimum for a usable map. Twenty to twenty-five is where the model becomes worth calibrating, because the fit then has enough spread to separate wall loss from distance.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Floor area</th><th>Points</th><th>What it looks like</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>≤ 40 m²</td><td>8–10</td><td>One room plus its doorways; every corner gets a point</td></tr>
+            <tr><td>40–80 m²</td><td>12–15</td><td>Two or three rooms; both sides of each internal door</td></tr>
+            <tr><td>80–150 m²</td><td>18–25</td><td>Whole flat; corridor gets points every 2–3 m</td></tr>
+            <tr><td>&gt; 150 m²</td><td>25–35</td><td>Split long runs by room; do not thin out the far end</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The rule that matters more than the count: <strong>one point every 2–3 m along walkable paths, plus every room corner and both sides of every doorway.</strong> Points cluster where people walk, which is also where the map is read.</p>
+
+      <figure class="figure">
+        <svg viewBox="0 0 640 260" role="img" aria-labelledby="layout-title">
+          <title id="layout-title">Two floor plans: a well distributed set of survey points and a badly clustered one</title>
+          <g fill="none" stroke="#4b6379" stroke-width="2">
+            <path d="M20 30h280v200H20z"/>
+            <path d="M150 30v80"/>
+            <path d="M20 150h130"/>
+            <path d="M330 30h280v200H330z"/>
+            <path d="M460 30v80"/>
+            <path d="M330 150h130"/>
+          </g>
+          <g fill="#35e0c8">
+            <circle cx="40" cy="50" r="4"/><circle cx="130" cy="50" r="4"/>
+            <circle cx="40" cy="130" r="4"/><circle cx="140" cy="140" r="4"/>
+            <circle cx="40" cy="210" r="4"/><circle cx="140" cy="210" r="4"/>
+            <circle cx="230" cy="60" r="4"/><circle cx="280" cy="60" r="4"/>
+            <circle cx="230" cy="140" r="4"/><circle cx="280" cy="140" r="4"/>
+            <circle cx="230" cy="210" r="4"/><circle cx="280" cy="210" r="4"/>
+            <circle cx="90" cy="90" r="4"/><circle cx="90" cy="180" r="4"/>
+          </g>
+          <g fill="#8497ab" font-family="ui-monospace, monospace" font-size="9" letter-spacing="1">
+            <text x="20" y="22">GOOD · 14 POINTS, EDGES AND DOORWAYS</text>
+            <text x="330" y="22">BAD · 12 POINTS, ONE CORNER</text>
+          </g>
+          <g fill="#fb7185">
+            <circle cx="380" cy="70" r="4"/><circle cx="395" cy="65" r="4"/><circle cx="372" cy="85" r="4"/>
+            <circle cx="400" cy="90" r="4"/><circle cx="385" cy="105" r="4"/><circle cx="410" cy="75" r="4"/>
+            <circle cx="378" cy="120" r="4"/><circle cx="398" cy="118" r="4"/><circle cx="390" cy="95" r="4"/>
+            <circle cx="405" cy="60" r="4"/><circle cx="370" cy="100" r="4"/><circle cx="392" cy="80" r="4"/>
+          </g>
+        </svg>
+        <figcaption>Left: points spread along the walkable paths, corners included. Right: a dozen points stacked in one corner — the rest of the floor is interpolation with no data behind it.</figcaption>
+      </figure>
+
+      <h2 id="tips">Recording tips</h2>
+      <ul>
+        <li><strong>Chest height.</strong> Hold the device at 1.2–1.4 m, where a laptop or phone actually sits. Sampling at desk height and reading the map at standing height mixes two paths.</li>
+        <li><strong>Do not cover the antenna.</strong> Hands around a laptop lid or a phone's top edge cost several dB every time — consistently enough to look like a wall.</li>
+        <li><strong>Stand still while sampling.</strong> A window taken mid-stride averages the path instead of measuring the point.</li>
+        <li><strong>Sample both sides of every doorway.</strong> That is the largest gradient in a house and the weakest place for interpolation.</li>
+        <li><strong>Stay out of cupboards.</strong> A point inside a closed cupboard measures the cupboard, and it will look like a dead zone forever.</li>
+        <li><strong>Repeat the worst spot three times.</strong> Three readings within 3 dB means the number is real; a 10 dB spread means something moved, so re-take rather than average.</li>
+      </ul>
+
+      <div class="callout warn">
+        <p class="callout-title">RSSI moves on its own</p>
+        <p>The same spot can read 5 dB apart a minute later with nothing changed, because the client radio, the AP's rate adaptation and whatever else is on the channel all shift. Do not chase single points. Judge a floor by the pattern across ten of them, and re-sample rather than editing a number by hand.</p>
+      </div>
+
+      <h2 id="editing">Editing and redoing points</h2>
+      <p>Points stay editable, and the three operations do different things:</p>
+      <ul>
+        <li><strong>Move</strong> corrects a mis-click. It changes where the readings plot and re-runs interpolation, but re-measures nothing. Move by tens of centimetres, not across the room.</li>
+        <li><strong>Re-sample</strong> replaces every value at that point with a fresh 15 s window. Use it when the environment changed or the first sample looked wrong.</li>
+        <li><strong>Delete</strong> removes the point from the current survey. The revision history keeps it, so restoring an earlier revision undoes it.</li>
+      </ul>
+      <p>Fifteen seconds is a floor, not a suggestion. Shorter samples are discarded by the server rather than extrapolated, because one partial scan cannot separate real signal from a scan that landed between beacons. If a node disconnects mid-sample, the point is marked incomplete and contributes nothing until it is re-taken.</p>
+
+      <h2 id="stale">What makes a survey stale</h2>
+      <p>A survey describes a radio environment at a moment. Change the environment and the map still renders perfectly while describing nothing.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Trigger</th><th>What to redo</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>An AP moved</td><td>Re-survey the affected floor; keep the old revision</td></tr>
+            <tr><td>Channel or width changed</td><td>Re-survey; interference per channel does not transfer</td></tr>
+            <tr><td>Transmit power changed</td><td>Re-survey; every RSSI shifts with the power delta</td></tr>
+            <tr><td>Model re-imported or walls relabelled</td><td>Re-run calibration; re-survey if geometry moved</td></tr>
+            <tr><td>AP firmware update</td><td>Spot-check 3–5 points per floor; over 4 dB means full re-survey</td></tr>
+            <tr><td>Furniture or layout changed</td><td>Re-survey affected rooms; metal changes more than soft furnishing</td></tr>
+            <tr><td>More than 90 days old</td><td>Full re-survey, even with nothing knowingly changed</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The survey list shows each survey's age and AP revision, so a map taken before the last channel change is labelled as such rather than mixed with newer data.</p>
+
+      <div class="callout limit">
+        <p class="callout-title">Points are moments, not monitoring</p>
+        <p>Nothing re-measures between surveys. A link that fails only under load, or only while the microwave runs, will not appear here: a 15 s window is quiet by construction. Survey the spot repeatedly at the time it happens and compare the repeats.</p>
+      </div>
+
+      <p>With points on the floor, open <a href="heatmaps.html">Heatmaps</a> to read what they add up to, or go straight to <a href="propagation-model.html">the propagation model</a> if you want the wall-aware fit behind them.</p>
+
+    </article>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span>Wi-Fi Survey v0.1 · public documentation</span>
+  <span class="spacer"></span>
+  <a href="privacy.html">Privacy</a>
+  <a href="contributing.html">Contributing</a>
+  <a href="changelog.html">Changelog</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

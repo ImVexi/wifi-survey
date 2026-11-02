@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tuning recommendations — Wi-Fi Survey docs</title>
+<meta name="description" content="Rule-based channel and power suggestions with dry-run by default, one change per run, a 01:00–05:00 window, a 3 dB step limit and automatic rollback.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body data-page="tuning">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle navigation">☰ <span>Menu</span></button>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="brand-tag">docs</span></a>
+  <div class="search" role="search">
+    <input id="searchInput" type="search" placeholder="Search docs…  ( / )" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <noscript>
+      <div class="nav-group">
+        <p class="nav-group-title">Chapters</p>
+        <ul class="nav-list">
+          <li><a class="nav-link" href="index.html">Overview</a></li>
+          <li><a class="nav-link" href="install.html">Install</a></li>
+          <li><a class="nav-link" href="quickstart.html">Quickstart</a></li>
+          <li><a class="nav-link" href="concepts.html">Concepts</a></li>
+          <li><a class="nav-link" href="scanner-nodes.html">Scanner nodes</a></li>
+          <li><a class="nav-link" href="model-import.html">3D model import</a></li>
+          <li><a class="nav-link" href="survey.html">Running a survey</a></li>
+          <li><a class="nav-link" href="heatmaps.html">Heatmaps</a></li>
+          <li><a class="nav-link" href="propagation-model.html">Propagation model</a></li>
+          <li><a class="nav-link" href="position.html">Live position</a></li>
+          <li><a class="nav-link" href="unifi.html">UniFi integration</a></li>
+          <li><a class="nav-link" href="tuning.html">Tuning recommendations</a></li>
+          <li><a class="nav-link" href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a class="nav-link" href="faq.html">FAQ</a></li>
+          <li><a class="nav-link" href="privacy.html">Privacy</a></li>
+          <li><a class="nav-link" href="contributing.html">Contributing</a></li>
+          <li><a class="nav-link" href="changelog.html">Changelog</a></li>
+        </ul>
+        <p class="nojs-note">JavaScript is off: this list is the full chapter index, but in-page search, the table of contents and the copy buttons are unavailable.</p>
+      </div>
+    </noscript>
+  </aside>
+
+  <main class="content" id="main">
+    <article>
+
+      <h1>Tuning recommendations</h1>
+      <p class="lede">Wi-Fi Survey looks at your channels, widths, power levels and survey data and proposes specific changes. The rules are written down and readable; the estimates behind them come from the calibrated propagation model. No part of this is machine learning.</p>
+      <p class="meta"><span>v0.1</span><span>~6 min read</span></p>
+
+      <div class="callout limit">
+        <p class="callout-title">Planned — not in v0.1</p>
+        <p>The tuning engine is planned. v0.1 has no rule engine, no dry-run diff and no apply/rollback path, and it never writes to an access point. This chapter describes the recommendations the engine will produce and the guard rails they will run behind.</p>
+      </div>
+
+      <h2 id="rules">The rules</h2>
+      <p>Each rule has a trigger you can check against your own controller, a proposed change, and a reason. Nothing is proposed from a black box: if you disagree with the reason, ignore the suggestion and the tool will keep proposing it until the condition changes or you dismiss it.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Rule</th><th>Trigger</th><th>Suggestion</th><th>Why</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Co-channel overlap</td>
+              <td>Two or more APs on the same channel in the same band with overlapping coverage</td>
+              <td>Move one radio to a clearer channel</td>
+              <td>Overlapping cells share airtime whether or not clients are active; throughput drops even where RSSI is strong</td>
+            </tr>
+            <tr>
+              <td>40 MHz on 2.4 GHz</td>
+              <td>Any 2.4 GHz radio set to 40 MHz</td>
+              <td>Set 20 MHz</td>
+              <td>The band holds three non-overlapping 20 MHz channels; 40 MHz consumes most of it and guarantees overlap</td>
+            </tr>
+            <tr>
+              <td>TX power too high</td>
+              <td>Sticky clients, or cell overlap well beyond what roaming needs</td>
+              <td>Reduce by 3 dB</td>
+              <td>Smaller cells make clients roam to the nearer AP and reduce co-channel interference</td>
+            </tr>
+            <tr>
+              <td>TX power too low</td>
+              <td>Coverage holes at the cell edge, clients running below usable RSSI</td>
+              <td>Increase by 3 dB</td>
+              <td>Clients at the edge negotiate low rates and hold airtime longer than their data needs</td>
+            </tr>
+            <tr>
+              <td>Band steering off</td>
+              <td>A dual-band SSID with band steering disabled</td>
+              <td>Enable band steering</td>
+              <td>5 GHz has more channels and less interference; clients should be nudged there when they can hear it</td>
+            </tr>
+            <tr>
+              <td>Minimum RSSI unset</td>
+              <td>No minimum RSSI configured on an AP</td>
+              <td>Set a modest threshold</td>
+              <td>Without it a client stays associated long after a better AP is available</td>
+            </tr>
+            <tr>
+              <td>Non-DFS congestion</td>
+              <td>A 5 GHz radio on a non-DFS channel with heavy overlap</td>
+              <td>Consider a DFS channel, with a warning</td>
+              <td>DFS channels are often empty indoors, but a radar detection event forces the AP off the channel</td>
+            </tr>
+            <tr>
+              <td>Legacy rates enabled</td>
+              <td>802.11b rates (1, 2, 5.5, 11 Mbps) enabled on 2.4 GHz</td>
+              <td>Disable them</td>
+              <td>One slow client consumes airtime for everyone, and management frames are sent at the lowest rate</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Where a rule needs a number — how much overlap counts as excessive, whether a client is sticky — the figure comes from the model and the survey, not from a fixed guess. That is the difference between "power looks high" and "this AP's cell reaches 8 m past the midpoint to its neighbour".</p>
+
+      <h2 id="guardrails">Guardrails</h2>
+      <p>Changing a radio affects every client on it, so the default posture is caution and the defaults are deliberately slow.</p>
+      <ul>
+        <li><strong>Dry-run is the default.</strong> Nothing is written until you turn that off and explicitly enable automation.</li>
+        <li><strong>One change per run.</strong> A run applies at most one change, so any regression has a single possible cause.</li>
+        <li><strong>Thirty-minute cooldown.</strong> After a run the tool waits 30 minutes before considering another, which gives clients time to reassociate and the metrics time to settle.</li>
+        <li><strong>3 dB maximum power step.</strong> Power moves in single 3 dB steps regardless of how large the recommended change is.</li>
+        <li><strong>Off-hours window.</strong> Changes are only applied between 01:00 and 05:00 local time. Outside that window a recommendation waits.</li>
+        <li><strong>Automatic rollback.</strong> If median RSSI drops by more than 3 dB, or more than 20% of clients disconnect within 15 minutes, the change is reverted without asking.</li>
+        <li><strong>Change log.</strong> Every applied change is recorded with before and after metrics, so you can see what happened weeks later.</li>
+      </ul>
+      <p>Only supported controllers can be written to. With manual mode there is nothing to write to, and the tool stays a recommendation engine.</p>
+
+      <h2 id="dry-run">Dry-run</h2>
+      <p>In dry-run the rules still fire and the scoring still runs; the only thing missing is the write. Each recommendation shows the exact change it <em>would</em> make — the AP, the field, the current value and the proposed value — and the paragraph explaining why the rule triggered.</p>
+      <p>This is the mode to leave on for the first month. Run it through a full week, including the evenings when the house is busy, and see which recommendations keep coming back. A rule that fires once during a one-off speed test is noise; one that fires every night at 20:00 is telling you something about your channel plan.</p>
+      <p>Dry-run is also how you audit the rules. If a suggestion looks wrong, the trigger and the evidence are both on screen.</p>
+
+      <h2 id="applying">Applying a change</h2>
+      <p>Writing is enabled per controller and nowhere else. Go to <strong>Settings → Automation</strong>, select the controller, choose which change types are allowed — channel, power, width, and so on — and set the window during which changes may run. Anything you leave unticked is never applied, no matter what the rules suggest.</p>
+      <p>From there you have two ways to proceed. You can leave it to the scheduler, which applies at most one permitted change per run inside the window subject to the cooldown, or you can press <strong>Apply now</strong> on a single recommendation and watch it happen. The manual path is worth using the first few times: it shows the sequence at a readable pace.</p>
+      <p>After a change is applied the UI enters a 15-minute watch period with a live RSSI sparkline for the affected AP and its clients. That window is exactly the period the rollback conditions are evaluated over, so if the line drops you will see the rollback happen rather than reading about it afterwards.</p>
+
+      <h2 id="rollback">Rollback</h2>
+      <p>Rollback restores the previous value of the field that was changed — the old channel, or the old transmit power — and nothing else. It is automatic when a rollback condition trips during the watch period, and manual from the change log at any time afterwards.</p>
+      <p>The automatic trigger is deliberately blunt. Median RSSI falling by more than 3 dB, or more than 20% of associated clients disappearing within 15 minutes, is enough. Both are symptoms that the change was wrong for the environment, not that the clients were unlucky, and neither is worth waiting out.</p>
+      <p>A rollback is itself a change, so it is logged like one: what was reverted, when, which condition fired and what the metrics looked like at that moment. A controller that keeps rolling back the same recommendation is telling you the rule and the environment disagree, and the log is where you find that out.</p>
+
+      <h2 id="enable">Enabling automation</h2>
+      <p>The defaults live in <code>/etc/wifisurvey/config.toml</code>. Leave automation off until you have run dry-run long enough to trust the suggestions.</p>
+<pre><code>[automation]
+enabled = false
+dry_run = true
+window = "01:00-05:00"
+max_step_db = 3</code></pre>
+      <p>With <code>enabled = false</code> nothing is ever written and the recommendations are advisory. Setting <code>enabled = true</code> while leaving <code>dry_run = true</code> turns on the scheduler but still performs no writes — a useful intermediate state, because it exercises the scheduling and cooldown logic without touching a radio. Only <code>enabled = true</code> together with <code>dry_run = false</code> applies changes, and only inside the window.</p>
+      <p><code>max_step_db</code> caps a single power change; values above 3 are accepted by the parser and ignored by the guardrail, because the step limit is a safety property rather than a preference. The cooldown and the 15-minute watch period are fixed in v0.1 and are not configurable.</p>
+
+      <h2 id="limits">Limits</h2>
+      <p>The rules are conservative by design: they under-recommend rather than propose something clever and fragile, so a well-tuned network often gets no suggestions at all — intended, not a bug.</p>
+      <div class="callout limit">
+        <p class="callout-title">Scope of v0.1</p>
+        <p>Writing is only supported for UniFi controllers, through the account described in <a href="unifi.html">UniFi integration</a>. There is no write support for other controllers, no channel changes on 6 GHz, and no automatic changes to mesh backhaul — backhaul tuning is left to you, because a wrong change there takes the whole mesh down. Everywhere else the tool recommends and you apply.</p>
+      </div>
+      <p>Two more things worth knowing. A rule sees the survey and the controller, not your home: if the "sticky client" is a device that never moves, the suggestion to reduce power may be wrong for it. And recommendations are evaluated against the last survey and the current calibration, so if the building changed and you have not re-surveyed, the numbers behind a suggestion are stale even when the rule fires correctly.</p>
+      <p>Read <a href="heatmaps.html">Heatmaps</a> before acting on a coverage-based suggestion, and <a href="troubleshooting.html">Troubleshooting</a> if a change is applied but the metric does not move.</p>
+
+    </article>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span>Wi-Fi Survey v0.1 · public documentation</span>
+  <span class="spacer"></span>
+  <a href="privacy.html">Privacy</a>
+  <a href="contributing.html">Contributing</a>
+  <a href="changelog.html">Changelog</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

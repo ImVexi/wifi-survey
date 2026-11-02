@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contributing — Wi-Fi Survey docs</title>
+<meta name="description" content="How to work on Wi-Fi Survey: repository layout, dev environment, test strategy, adding a scanner node type, API versioning, code style, docs rules and the PR checklist.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body data-page="contributing">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle navigation">☰ <span>Menu</span></button>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="brand-tag">docs</span></a>
+  <div class="search" role="search">
+    <input id="searchInput" type="search" placeholder="Search docs…  ( / )" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <noscript>
+      <div class="nav-group">
+        <p class="nav-group-title">Chapters</p>
+        <ul class="nav-list">
+          <li><a class="nav-link" href="index.html">Overview</a></li>
+          <li><a class="nav-link" href="install.html">Install</a></li>
+          <li><a class="nav-link" href="quickstart.html">Quickstart</a></li>
+          <li><a class="nav-link" href="concepts.html">Concepts</a></li>
+          <li><a class="nav-link" href="scanner-nodes.html">Scanner nodes</a></li>
+          <li><a class="nav-link" href="model-import.html">3D model import</a></li>
+          <li><a class="nav-link" href="survey.html">Running a survey</a></li>
+          <li><a class="nav-link" href="heatmaps.html">Heatmaps</a></li>
+          <li><a class="nav-link" href="propagation-model.html">Propagation model</a></li>
+          <li><a class="nav-link" href="position.html">Live position</a></li>
+          <li><a class="nav-link" href="unifi.html">UniFi integration</a></li>
+          <li><a class="nav-link" href="tuning.html">Tuning recommendations</a></li>
+          <li><a class="nav-link" href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a class="nav-link" href="faq.html">FAQ</a></li>
+          <li><a class="nav-link" href="privacy.html">Privacy</a></li>
+          <li><a class="nav-link" href="contributing.html">Contributing</a></li>
+          <li><a class="nav-link" href="changelog.html">Changelog</a></li>
+        </ul>
+        <p class="nojs-note">JavaScript is off: this list is the full chapter index, but in-page search, the table of contents and the copy buttons are unavailable.</p>
+      </div>
+    </noscript>
+  </aside>
+
+  <main class="content" id="main">
+    <article>
+
+      <h1>Contributing</h1>
+      <p class="lede">The project is a small Python service, a browser UI and three agents that all speak one reading schema. This chapter explains where things live, how to run the tests, how to add a node type, and what a pull request has to contain before it is reviewed.</p>
+      <p class="meta"><span>v0.1</span><span>~11 min read</span></p>
+
+      <p>Contributions are expected to keep the deployment story intact: one server, one SQLite file, no cloud dependency and no build step in the documentation. If a change needs a new daemon, a message broker or an external service to work, it is the wrong shape for this repository.</p>
+
+      <h2 id="layout">Repository layout</h2>
+
+<pre><code class="language-text">wifi-survey/
+├── server/          FastAPI app, API v1, SQLite schema, static viewer
+│   ├── wifisurvey/  package: config, auth, db, main, model_import, cli
+│   ├── static/      index.html, app.js, style.css, vendored three.js
+│   └── tests/       pytest suite against a temporary database
+├── modelkit/        geometry pipeline: floors, walls, regularisation, plans
+├── agent-linux/     stdlib Python agent, systemd user unit, tests
+├── agent-android/   Termux script (termux-wifi-scaninfo)
+├── agent-esp32/     Arduino sketch (PlatformIO project)
+├── installer/       install.sh, uninstall.sh, unit template, Dockerfile, compose
+├── docs/            the documentation site published by GitHub Pages
+├── scripts/         scrub_check.py and maintenance helpers
+└── tests/           cross-cutting fixtures and end-to-end scenarios
+</code></pre>
+
+      <p>The split is by runtime, not by layer. <code>server/</code> owns HTTP, authentication and persistence, and serves the viewer from the same origin. <code>modelkit/</code> is computation over meshes and polygons with no database handle and no network access, which is what makes it testable without an instance. <code>agent-*/</code> contains one directory per platform; the shared contract is the JSON payload, not a library. Heatmap, propagation, position and tuning code will land in <code>server/</code> as separate modules when those phases are built.</p>
+      <p>If you are unsure where a change belongs, ask whether it needs a request context. Anything that does belongs in <code>server/</code>; anything that could run in a script with a mesh and two arrays belongs in <code>modelkit/</code>.</p>
+
+      <h2 id="architecture">How the pieces connect</h2>
+      <p>One process serves the UI and the API on port 8800. Agents post readings into it, the engine computes from stored rows, and the browser reads results over the same origin. The database is the only shared state.</p>
+
+      <figure class="figure">
+        <svg viewBox="0 0 760 372" role="img" aria-labelledby="arch-title">
+          <title id="arch-title">Scanner agents and a UniFi controller send data to a FastAPI app, which serves a browser viewer; the app reads and writes an engine backed by SQLite</title>
+          <defs>
+            <marker id="arch-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="#8497ab"/>
+            </marker>
+            <marker id="arch-arrow-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="#35e0c8"/>
+            </marker>
+          </defs>
+
+          <rect x="0" y="0" width="760" height="372" fill="#080d12"/>
+
+          <rect x="280" y="20" width="200" height="56" rx="8" fill="#0e1721" stroke="#35e0c8" stroke-width="1.2"/>
+          <text x="380" y="44" text-anchor="middle" fill="#35e0c8" font-family="ui-monospace, monospace" font-size="12">Browser viewer</text>
+          <text x="380" y="63" text-anchor="middle" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11">same origin · local token</text>
+
+          <rect x="270" y="112" width="220" height="76" rx="8" fill="#121d29" stroke="#35e0c8" stroke-width="1.4"/>
+          <text x="380" y="141" text-anchor="middle" fill="#35e0c8" font-family="ui-monospace, monospace" font-size="13">FastAPI app</text>
+          <text x="380" y="160" text-anchor="middle" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11">UI + API · 0.0.0.0:8800</text>
+          <text x="380" y="176" text-anchor="middle" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11">bearer token on every call</text>
+
+          <rect x="24" y="96" width="196" height="92" rx="8" fill="#0e1721" stroke="#1d2b3a" stroke-width="1.2"/>
+          <text x="122" y="126" text-anchor="middle" fill="#7dd3fc" font-family="ui-monospace, monospace" font-size="12">Scanner agents</text>
+          <text x="122" y="146" text-anchor="middle" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11">Linux · Android · ESP32</text>
+          <text x="122" y="166" text-anchor="middle" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11">POST /api/v1/readings</text>
+
+          <rect x="24" y="216" width="196" height="76" rx="8" fill="#0e1721" stroke="#1d2b3a" stroke-width="1.2"/>
+          <text x="122" y="246" text-anchor="middle" fill="#7dd3fc" font-family="ui-monospace, monospace" font-size="12">UniFi controller</text>
+          <text x="122" y="266" text-anchor="middle" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11">read-only · session in RAM</text>
+
+          <rect x="270" y="250" width="220" height="96" rx="8" fill="#0e1721" stroke="#7dd3fc" stroke-width="1.2"/>
+          <text x="380" y="280" text-anchor="middle" fill="#7dd3fc" font-family="ui-monospace, monospace" font-size="12">Engine</text>
+          <text x="380" y="300" text-anchor="middle" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11">IDW · kriging · propagation</text>
+          <text x="380" y="318" text-anchor="middle" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11">kNN position · tuning rules</text>
+
+          <rect x="560" y="250" width="176" height="96" rx="8" fill="#0e1721" stroke="#1d2b3a" stroke-width="1.2"/>
+          <text x="648" y="280" text-anchor="middle" fill="#7dd3fc" font-family="ui-monospace, monospace" font-size="12">SQLite (WAL)</text>
+          <text x="648" y="300" text-anchor="middle" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11">/var/lib/wifisurvey</text>
+          <text x="648" y="318" text-anchor="middle" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11">survey.db · models/</text>
+
+          <rect x="560" y="112" width="176" height="76" rx="8" fill="#0e1721" stroke="#1d2b3a" stroke-width="1.2"/>
+          <text x="648" y="142" text-anchor="middle" fill="#8497ab" font-family="ui-monospace, monospace" font-size="12">Token + config</text>
+          <text x="648" y="162" text-anchor="middle" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11">/etc/wifisurvey</text>
+
+          <path d="M224 148 H264" fill="none" stroke="#8497ab" stroke-width="1.4" marker-end="url(#arch-arrow)"/>
+          <path d="M224 252 H246 V192" fill="none" stroke="#8497ab" stroke-width="1.4" marker-end="url(#arch-arrow)"/>
+          <path d="M380 110 V82" fill="none" stroke="#35e0c8" stroke-width="1.4" marker-end="url(#arch-arrow-accent)"/>
+          <path d="M380 194 V244" fill="none" stroke="#35e0c8" stroke-width="1.4" marker-end="url(#arch-arrow-accent)"/>
+          <path d="M494 298 H554" fill="none" stroke="#8497ab" stroke-width="1.4" marker-end="url(#arch-arrow)"/>
+          <path d="M554 148 H500" fill="none" stroke="#8497ab" stroke-width="1.2" stroke-dasharray="4 4" marker-end="url(#arch-arrow)"/>
+        </svg>
+        <figcaption>Readings arrive from the agents on the left, the app validates and stores them, and the engine answers queries from the viewer. The UniFi path is optional and read-only.</figcaption>
+      </figure>
+
+      <p>Two consequences follow from that picture, and both matter when you write code. First, an agent never talks to the engine directly; it posts a reading and the server decides where it lands. Second, the engine cannot fetch anything it was not handed, so every function takes its inputs explicitly — that is why it can be unit-tested with a dictionary of points and no running service.</p>
+
+      <div class="callout note">
+        <p class="callout-title">Schema is the contract</p>
+        <p>The reading payload — <code>node_id</code>, <code>ts</code>, <code>position</code> with <code>x</code>, <code>y</code> and <code>floor</code>, and a <code>samples</code> array of <code>bssid</code>, <code>ssid</code>, <code>band</code>, <code>channel</code>, <code>freq_mhz</code> and <code>rssi</code> — is version 1 and shared by every node type. Changing it is an API change, not an implementation detail.</p>
+      </div>
+
+      <h2 id="dev-setup">Development setup</h2>
+      <p>Use a virtual environment; the installer is not involved in development and should not be run against a working checkout. The version of Python is pinned in <code>pyproject.toml</code>, and the editable install pulls in the test and lint extras.</p>
+
+<pre><code class="language-bash">git clone https://github.com/jpullen724-stack/wifi-survey.git
+cd wifi-survey/server
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -e '.[dev]'
+</code></pre>
+
+      <p>Then check that the tree is healthy before you change anything, so that a later failure is clearly yours:</p>
+
+<pre><code class="language-bash">cd server &amp;&amp; python -m pytest
+cd ../modelkit &amp;&amp; python -m pytest
+cd ../agent-linux &amp;&amp; python3 -m unittest discover
+cd .. &amp;&amp; ruff check
+python3 scripts/scrub_check.py
+</code></pre>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Command</th><th>What it covers</th><th>Expected</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>server: python -m pytest</code></td><td>Config, auth, pairing, ingest and model import against a temporary database</td><td>All green, no network access</td></tr>
+            <tr><td><code>modelkit: python -m pytest</code></td><td>Floor detection, wall extraction, regularisation, plans, CLI</td><td>All green, fixtures only</td></tr>
+            <tr><td><code>agent-linux: python3 -m unittest</code></td><td>nmcli parsers, outbox, cooldown, pairing against a stub server</td><td>All green, stdlib only</td></tr>
+            <tr><td><code>ruff check</code></td><td>Lint and import order with the repository defaults</td><td>No findings</td></tr>
+            <tr><td><code>python3 scripts/scrub_check.py</code></td><td>Household identifiers and MAC addresses outside tests</td><td>0 findings</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Running the server locally works without the installer; point it at a writable data directory so you never touch <code>/var/lib/wifisurvey</code> on a machine that already has a real survey. <code>wifi-survey init --data-dir /tmp/ws-dev</code> writes a config with fresh secrets, then <code>wifi-survey serve</code> runs it on a port you choose. A local run on another port keeps the mDNS name out of the way and avoids collisions with an installed instance.</p>
+
+      <h2 id="tests">Test strategy</h2>
+      <p>Tests are built around isolation rather than mocks of the framework. Each test gets its own application instance and a temporary SQLite file, created and torn down by a fixture, so no test can see another test's readings and the suite can run in any order or in parallel. Nothing binds a real port unless the test is specifically about the listener, and nothing reaches the network.</p>
+      <p>Agents are exercised through a fake agent fixture that emits a deterministic sequence of readings, including the awkward cases: a scan with one BSSID, a scan with a missing SSID, samples from two bands in the same reading, and a timestamp that arrives out of order. The same fixture feeds the API tests, which means the ingest path and the storage path are tested against identical input.</p>
+      <p>Golden models live in <code>tests/fixtures</code>. They are small meshes with known geometry, used to pin down floor detection and wall extraction: if a change alters which walls are found, the test fails with a readable diff rather than a silently different heatmap. When a change is deliberately supposed to alter that output, regenerate the golden file, review the diff line by line, and commit both together — never regenerate to make a red test green without reading it.</p>
+      <p>What is not covered: radio behaviour itself. A test cannot assert that your APs are where you say they are, so the suite checks arithmetic and plumbing, and the documentation is explicit about the physical uncertainty that remains.</p>
+
+      <h2 id="node-type">Adding a node type</h2>
+      <p>A node type is a producer of readings plus a small amount of metadata about what it can do. The engine does not know or care which platform produced a row, so the work is mostly at the edges.</p>
+
+      <ol class="steps">
+        <li><strong>Implement the reading schema</strong> Build the version 1 payload exactly: <code>node_id</code>, an RFC 3339 <code>ts</code>, a <code>position</code> object with <code>x</code>, <code>y</code> and <code>floor</code>, and a <code>samples</code> array whose entries carry <code>bssid</code>, <code>ssid</code>, <code>band</code>, <code>channel</code>, <code>freq_mhz</code> and <code>rssi</code>. Do not add fields; if the platform has extra information, put it in the capability metadata instead.</li>
+        <li><strong>Post it to <code>/api/v1/readings</code> with a node token</strong> Authenticate with the token issued at pairing, not with the dashboard token. A node token can post only for its own node id, so a bug that mixes up ids fails loudly with a 403 rather than quietly corrupting a survey.</li>
+        <li><strong>Add a pairing kind</strong> The node claims a six-digit single-use code within 10 minutes via <code>POST /api/v1/pair</code> with <code>code</code>, <code>node_id</code> and <code>node_type</code>. Register the platform so the UI can show the right instructions and so the issued token is scoped to the capabilities you declare.</li>
+        <li><strong>Declare capability flags</strong> Say which bands the device can see, whether it can sample continuously or only on demand, whether it has a usable position source, and whether it reports dBm directly or a percentage that needs converting. The UI hides views a node cannot feed, and the survey page warns before you plan a 5 GHz walk with a 2.4 GHz-only node.</li>
+        <li><strong>Publish accuracy metadata</strong> Record the conversion used, its error margin and any known throttling. If the platform reports a percentage, state the formula; the Linux agent uses <code>-100 + 0.6 × pct</code> clipped at −40 dBm and is only accurate to about ±3 dB, and a new node should be equally explicit.</li>
+        <li><strong>Document it</strong> Add a section to <a href="scanner-nodes.html">Scanner nodes</a> covering setup, what it measures, and what it cannot do. A node type that is not on that page does not exist as far as users are concerned.</li>
+      </ol>
+
+      <div class="callout limit">
+        <p class="callout-title">No plugin API yet</p>
+        <p>Node types live in-tree under <code>agent-linux/</code>, <code>agent-android/</code> and <code>agent-esp32/</code>. There is no plugin loader, no sandbox and no stability promise for third-party agents in v0.1, so a new platform is a pull request rather than a package you publish separately. That also means no runtime dependency can be added just to support one node.</p>
+      </div>
+
+      <h2 id="style">Code style and API rules</h2>
+      <p>Ruff runs with the repository defaults; there is no separate formatting discussion, and a pull request that reformats unrelated lines will be asked to narrow its diff. Type hints are expected on public functions in <code>server/</code> and <code>engine/</code>, since the schema crosses both. New runtime dependencies need a conversation in an issue before the pull request: the installer has to work on four distributions and in a container, and every dependency is another way for that to break.</p>
+      <p>API versioning is additive within a major version. Adding an optional field or a new endpoint is fine. Renaming a field, changing a unit, or making an optional field required is a breaking change and belongs in a new <code>/api/v2</code> prefix, with v1 kept working until a release note says otherwise. The reading schema is the strictest case: agents in the field cannot be upgraded on your schedule, so v1 payloads must keep parsing for as long as v1 exists.</p>
+      <p>Errors are JSON with a stable <code>code</code> and a human-readable <code>message</code>; do not return bare strings, and do not leak a stack trace to a client. Log lines are for operators, so include the node id or survey id and leave the prose out.</p>
+
+      <h2 id="docs">Documentation rules</h2>
+      <p>This site is hand-written HTML with one stylesheet and one script. There is no Markdown pipeline, no template engine and no build step, which is deliberate: the pages work from a USB stick and from any static host. Use only the classes documented at the top of <code>assets/style.css</code>, wrap every table in <code>&lt;div class="table-wrap"&gt;</code>, and keep code inside <code>&lt;pre&gt;&lt;code&gt;</code> with the angle brackets escaped.</p>
+      <p>Before you push a docs change, run all three scripts from the site directory:</p>
+
+<pre><code class="language-bash">python3 scripts/build_search_index.py
+python3 scripts/check_links.py
+python3 scripts/check_html.py .
+</code></pre>
+
+      <p>The first regenerates the search index, the second fails on a broken relative link, a missing anchor or an orphaned page, and the third checks tag balance and required head metadata. All three exit non-zero, so they can gate CI. Do not hand-edit <code>search-index.json</code>; it is generated. Do not add images, web fonts or a CDN reference — diagrams are inline SVG, and screenshots are placeholders until real captures exist. Write in neutral English, second person, and put unsupported behaviour in a <code>.callout.limit</code> block instead of softening it.</p>
+
+      <h2 id="pr-checklist">Pull request checklist</h2>
+      <ul>
+        <li>The change does one thing, and the description says what problem it solves.</li>
+        <li><code>pytest</code>, <code>ruff check</code> and <code>mypy server</code> pass locally.</li>
+        <li>New behaviour has a test; a fixed bug has a test that failed before the fix.</li>
+        <li>Schema or API changes are additive, or they are versioned and documented as breaking.</li>
+        <li>No new runtime dependency, or an issue comment agreeing to one.</li>
+        <li>Log lines carry ids, not prose; error responses carry a stable code.</li>
+        <li>If user-visible, the relevant docs page is updated and all three scripts pass.</li>
+        <li>Golden fixtures are regenerated only with a reviewed diff.</li>
+        <li>No secrets, tokens, private hostnames or real survey data in the diff.</li>
+      </ul>
+
+      <p>Small pull requests get reviewed faster than complete ones. If you are planning something structural — a new interpolation method, a different storage layout, a second listener — open an issue with the design first and save yourself a rewrite.</p>
+
+    </article>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span>Wi-Fi Survey v0.1 · public documentation</span>
+  <span class="spacer"></span>
+  <a href="privacy.html">Privacy</a>
+  <a href="contributing.html">Contributing</a>
+  <a href="changelog.html">Changelog</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

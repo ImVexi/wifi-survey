@@ -1,0 +1,25 @@
+/*
+  Cloudflare Pages security headers for the Wi-Fi Survey docs site.
+  Static HTML only: no cookies, no forms, no external origins.
+
+  style-src allows 'unsafe-inline' only because inline SVG diagrams carry
+  presentation attributes; there is no external CSS, font or script origin.
+*/
+
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  X-Robots-Tag: index, follow
+
+/assets/*
+  Cache-Control: public, max-age=3600
+  X-Content-Type-Options: nosniff
+
+/search-index.json
+  Content-Type: application/json; charset=utf-8
+  Cache-Control: public, max-age=300
+  X-Content-Type-Options: nosniff

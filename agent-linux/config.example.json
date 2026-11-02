@@ -1,0 +1,11 @@
+{
+  "server_url": "http://survey.local:8800",
+  "node_token": "",
+  "node_id": null,
+  "node_type": "laptop",
+  "iface": null,
+  "scan_interval_s": 10,
+  "status_bind": "127.0.0.1:8790",
+  "state_dir": null,
+  "position": null
+}

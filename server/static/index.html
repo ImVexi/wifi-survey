@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wi-Fi Survey</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <div class="brand"><span class="mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="tag">self-hosted</span></div>
+  <div class="top-actions">
+    <span id="status-pill" class="pill" hidden></span>
+    <button id="logout" class="btn ghost small" hidden>Sign out</button>
+  </div>
+</header>
+
+<main id="main">
+  <!-- ------------------------------------------------------------ login -->
+  <section id="view-login" class="center-card" hidden>
+    <div class="card narrow">
+      <h1>Sign in</h1>
+      <p class="muted">Use the admin password you chose, or the viewer token printed by the installer.</p>
+      <form id="login-form" autocomplete="on">
+        <label for="login-password">Password or token</label>
+        <input id="login-password" name="password" type="password" required autocomplete="current-password">
+        <p id="login-error" class="error" role="alert" hidden></p>
+        <button class="btn primary" type="submit">Sign in</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------ wizard -->
+  <section id="view-wizard" class="wizard" hidden>
+    <div class="wizard-head">
+      <p class="eyebrow">First run</p>
+      <h1>Set up your survey</h1>
+      <p class="muted">Four short steps. Everything stays on this machine — no cloud account, no telemetry.</p>
+      <ol class="steps" id="wizard-steps">
+        <li data-step="admin"><span>1</span> Admin</li>
+        <li data-step="model"><span>2</span> Model</li>
+        <li data-step="floors"><span>3</span> Floors</li>
+        <li data-step="aps"><span>4</span> APs</li>
+      </ol>
+    </div>
+
+    <div class="wizard-body">
+      <div class="card step" data-panel="admin">
+        <h2>Choose an admin password</h2>
+        <p class="muted">At least 8 characters. It protects the dashboard and pairing codes; there is no recovery e-mail.</p>
+        <form id="admin-form">
+          <label for="admin-password">Password</label>
+          <input id="admin-password" type="password" minlength="8" required autocomplete="new-password">
+          <label for="admin-confirm">Repeat password</label>
+          <input id="admin-confirm" type="password" minlength="8" required autocomplete="new-password">
+          <p id="admin-error" class="error" role="alert" hidden></p>
+          <button class="btn primary" type="submit">Save and continue</button>
+        </form>
+      </div>
+
+      <div class="card step" data-panel="model" hidden>
+        <h2>Upload your 3D scan</h2>
+        <p class="muted">A GLB, glTF or OBJ export from a phone scan or a CAD tool. The pipeline runs locally and is deterministic: floors, walls, plans and metadata are derived from the mesh, never from a model in the cloud.</p>
+        <label class="drop" id="drop">
+          <input id="model-file" type="file" accept=".glb,.gltf,.obj" hidden>
+          <strong id="drop-title">Choose a scan file</strong>
+          <span class="muted" id="drop-note">.glb recommended · up to 150 MB</span>
+        </label>
+        <label for="model-name">Model name</label>
+        <input id="model-name" type="text" maxlength="128" placeholder="My house">
+        <div class="row">
+          <button id="upload-model" class="btn primary" type="button" disabled>Import scan</button>
+          <span id="upload-state" class="muted" role="status"></span>
+        </div>
+        <p id="model-error" class="error" role="alert" hidden></p>
+      </div>
+
+      <div class="card step" data-panel="floors" hidden>
+        <h2>Name your floors</h2>
+        <p class="muted">Floor 0 is the lowest level found in the scan. Names appear in the viewer and in node position pickers.</p>
+        <div id="floor-inputs" class="stack"></div>
+        <p id="floors-error" class="error" role="alert" hidden></p>
+        <button id="save-floors" class="btn primary" type="button">Save floors</button>
+      </div>
+
+      <div class="card step" data-panel="aps" hidden>
+        <h2>Add access points <span class="muted">(optional)</span></h2>
+        <p class="muted">Add them by hand now, or import read-only details from a local UniFi controller. You can change this later.</p>
+
+        <div class="tabs" role="tablist">
+          <button class="tab is-on" data-tab="manual" role="tab" aria-selected="true">Manual</button>
+          <button class="tab" data-tab="unifi" role="tab" aria-selected="false">UniFi</button>
+        </div>
+
+        <div data-tabpanel="manual">
+          <div id="ap-rows" class="stack"></div>
+          <button id="add-ap" class="btn ghost small" type="button">+ Add access point</button>
+        </div>
+
+        <div data-tabpanel="unifi" hidden>
+          <p class="muted small">Read-only. Use a local account; the password is stored on this machine with mode 0600 and never leaves it.</p>
+          <label for="unifi-url">Controller URL</label>
+          <input id="unifi-url" type="url" placeholder="https://controller.example:8443" autocomplete="off">
+          <div class="grid2">
+            <div>
+              <label for="unifi-user">Username</label>
+              <input id="unifi-user" type="text" autocomplete="username">
+            </div>
+            <div>
+              <label for="unifi-site">Site</label>
+              <input id="unifi-site" type="text" value="default">
+            </div>
+          </div>
+          <label for="unifi-pass">Password</label>
+          <input id="unifi-pass" type="password" autocomplete="current-password">
+          <label class="check"><input id="unifi-tls" type="checkbox"> Verify TLS certificate</label>
+          <button id="save-unifi" class="btn ghost small" type="button">Save UniFi settings</button>
+          <p id="unifi-state" class="muted small" role="status"></p>
+        </div>
+
+        <p id="aps-error" class="error" role="alert" hidden></p>
+        <div class="row end">
+          <button id="skip-aps" class="btn ghost" type="button">Skip for now</button>
+          <button id="finish-setup" class="btn primary" type="button">Finish setup</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------- dashboard -->
+  <section id="view-app" hidden>
+    <div class="hero">
+      <div>
+        <p class="eyebrow">Dashboard</p>
+        <h1 id="model-title">Your survey</h1>
+        <p class="muted" id="model-sub">Import a model to begin.</p>
+      </div>
+      <div class="hero-actions">
+        <button id="pair-button" class="btn primary">Pair a node</button>
+      </div>
+    </div>
+
+    <div id="pair-panel" class="card pair-panel" hidden>
+      <div>
+        <p class="eyebrow">One-time pairing code</p>
+        <p class="pair-code" id="pair-code">------</p>
+        <p class="muted small" id="pair-expiry"></p>
+      </div>
+      <div class="pair-help">
+        <p>On the scanning device run:</p>
+        <pre><code>wifi-survey-agent --server http://&lt;this-host&gt;:8800 --pair-code &lt;code&gt; --node-id laptop-hall</code></pre>
+        <p class="muted small">The code is valid for ten minutes and works once. The node receives its own token.</p>
+      </div>
+    </div>
+
+    <div class="stats" id="stats">
+      <div class="stat"><span class="stat-num" id="stat-nodes">0</span><span>nodes</span></div>
+      <div class="stat"><span class="stat-num" id="stat-scans">0</span><span>scans</span></div>
+      <div class="stat"><span class="stat-num" id="stat-readings">0</span><span>readings</span></div>
+      <div class="stat"><span class="stat-num" id="stat-bssids">0</span><span>BSSIDs</span></div>
+    </div>
+
+    <div class="app-grid">
+      <div class="card viewer-card">
+        <div class="card-head">
+          <h2>3D model</h2>
+          <div id="floor-buttons" class="seg"></div>
+        </div>
+        <div id="viewer" class="viewer">
+          <p class="viewer-empty" id="viewer-empty">No model imported yet.</p>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="card">
+          <div class="card-head"><h2>Nodes</h2><button id="refresh-nodes" class="btn ghost small" type="button">Refresh</button></div>
+          <div id="nodes-list" class="list"><p class="muted small">No nodes paired yet.</p></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Floors</h2></div>
+          <div id="floors-list" class="list"><p class="muted small">—</p></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="app-grid lower">
+      <div class="card">
+        <div class="card-head"><h2>Recent scans</h2></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Time</th><th>Node</th><th>Floor</th><th>Readings</th></tr></thead>
+            <tbody id="scans-body"><tr><td colspan="4" class="muted">No scans yet.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Access points</h2></div>
+        <div id="aps-list" class="list"><p class="muted small">No APs configured.</p></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script type="importmap">
+{"imports": {"three": "/static/vendor/three.module.js", "three/addons/": "/static/vendor/"}}
+</script>
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

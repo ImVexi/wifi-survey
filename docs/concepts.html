@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Concepts — Wi-Fi Survey docs</title>
+<meta name="description" content="The mental model behind Wi-Fi Survey: measured, interpolated and modelled values, what dBm really means, accuracy you can expect, and a plain glossary of terms.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1219'/%3E%3Cpath d='M7 13.5a13 13 0 0 1 18 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M11 18a7.5 7.5 0 0 1 10 0' stroke='%2335e0c8' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='23' r='2.2' fill='%2335e0c8'/%3E%3C/svg%3E">
+</head>
+<body data-page="concepts">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="sidebar" aria-label="Toggle navigation">☰ <span>Menu</span></button>
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◠◡</span> Wi-Fi Survey <span class="brand-tag">docs</span></a>
+  <div class="search" role="search">
+    <input id="searchInput" type="search" placeholder="Search docs…  ( / )" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <div class="search-results" id="searchResults" hidden></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+    <noscript>
+      <div class="nav-group">
+        <p class="nav-group-title">Chapters</p>
+        <ul class="nav-list">
+          <li><a class="nav-link" href="index.html">Overview</a></li>
+          <li><a class="nav-link" href="install.html">Install</a></li>
+          <li><a class="nav-link" href="quickstart.html">Quickstart</a></li>
+          <li><a class="nav-link" href="concepts.html">Concepts</a></li>
+          <li><a class="nav-link" href="scanner-nodes.html">Scanner nodes</a></li>
+          <li><a class="nav-link" href="model-import.html">3D model import</a></li>
+          <li><a class="nav-link" href="survey.html">Running a survey</a></li>
+          <li><a class="nav-link" href="heatmaps.html">Heatmaps</a></li>
+          <li><a class="nav-link" href="propagation-model.html">Propagation model</a></li>
+          <li><a class="nav-link" href="position.html">Live position</a></li>
+          <li><a class="nav-link" href="unifi.html">UniFi integration</a></li>
+          <li><a class="nav-link" href="tuning.html">Tuning recommendations</a></li>
+          <li><a class="nav-link" href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a class="nav-link" href="faq.html">FAQ</a></li>
+          <li><a class="nav-link" href="privacy.html">Privacy</a></li>
+          <li><a class="nav-link" href="contributing.html">Contributing</a></li>
+          <li><a class="nav-link" href="changelog.html">Changelog</a></li>
+        </ul>
+        <p class="nojs-note">JavaScript is off: this list is the full chapter index, but in-page search, the table of contents and the copy buttons are unavailable.</p>
+      </div>
+    </noscript>
+  </aside>
+
+  <main class="content" id="main">
+    <article>
+
+      <h1>Concepts</h1>
+      <p class="lede">A heatmap is not a photograph of your radio field. It is built from a handful of measurements, some geometry and a model, and each part deserves a different amount of trust. This chapter explains what the numbers are made of, what dBm means, and where the tool is allowed to be wrong.</p>
+      <p class="meta"><span>v0.1</span><span>~11 min read</span></p>
+
+      <h2 id="pipeline">From a reading to a map</h2>
+      <p>Every path starts with one HTTP request. A scanner node collects a 15-second burst of scans, reduces it to one value per BSSID, and posts it to <code>POST /api/v1/readings</code> with its node token. The server validates it, writes a row to SQLite and returns; nothing is computed at ingest.</p>
+      <p>The engine works when you ask for a view: it reads the readings for that floor, then runs three calculations — interpolation across your measured points, a propagation estimate from the AP and the walls, and a kNN match against positions you already recorded. The browser receives a grid of values and paints it. <em>In v0.1 only the first half exists: readings are validated and written to SQLite; the calculations described in this chapter are planned.</em></p>
+      <figure class="figure">
+        <svg viewBox="0 0 600 500" role="img" aria-labelledby="flow-title flow-desc">
+          <title id="flow-title">Data flow from scanner node to browser viewer</title>
+          <desc id="flow-desc">A scanner node posts readings to the REST API with a node token. The API writes them to SQLite. The engine reads the database and computes interpolation, a propagation model and a kNN position fingerprint. The browser renders the grid.</desc>
+          <rect x="0" y="0" width="600" height="500" fill="#080d12"/>
+          <text x="310" y="28" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11" letter-spacing="2.4" text-anchor="middle">SCAN · POST · STORE · COMPUTE · RENDER</text>
+
+          <rect x="110" y="50" width="400" height="60" rx="9" fill="#1d2b3a" fill-opacity="0.55" stroke="#35e0c8" stroke-width="1.4"/>
+          <text x="88" y="86" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11" text-anchor="middle">01</text>
+          <text x="130" y="78" fill="#35e0c8" font-family="ui-monospace, monospace" font-size="14">scanner node</text>
+          <text x="130" y="97" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11.5">laptop · phone · ESP32 — 15 s of scans</text>
+
+          <rect x="110" y="134" width="400" height="60" rx="9" fill="#1d2b3a" fill-opacity="0.55" stroke="#7dd3fc" stroke-width="1.4"/>
+          <text x="88" y="170" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11" text-anchor="middle">02</text>
+          <text x="130" y="162" fill="#7dd3fc" font-family="ui-monospace, monospace" font-size="14">POST /api/v1/readings</text>
+          <text x="130" y="181" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11.5">Bearer node token — schema v1, validated</text>
+
+          <rect x="110" y="218" width="400" height="60" rx="9" fill="#1d2b3a" fill-opacity="0.55" stroke="#8497ab" stroke-width="1.4"/>
+          <text x="88" y="254" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11" text-anchor="middle">03</text>
+          <text x="130" y="246" fill="#8497ab" font-family="ui-monospace, monospace" font-size="14" font-weight="600">SQLite</text>
+          <text x="130" y="265" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11.5">survey.db · WAL — readings, models, runs</text>
+
+          <rect x="110" y="302" width="400" height="60" rx="9" fill="#1d2b3a" fill-opacity="0.55" stroke="#7dd3fc" stroke-width="1.4"/>
+          <text x="88" y="338" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11" text-anchor="middle">04</text>
+          <text x="130" y="330" fill="#7dd3fc" font-family="ui-monospace, monospace" font-size="14">engine</text>
+          <text x="130" y="349" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11.5">IDW · kriging — PL model — kNN fingerprint</text>
+
+          <rect x="110" y="386" width="400" height="60" rx="9" fill="#1d2b3a" fill-opacity="0.55" stroke="#35e0c8" stroke-width="1.4"/>
+          <text x="88" y="422" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11" text-anchor="middle">05</text>
+          <text x="130" y="414" fill="#35e0c8" font-family="ui-monospace, monospace" font-size="14">browser viewer</text>
+          <text x="130" y="433" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11.5">heat grid · position dot · legend in dBm</text>
+
+          <path d="M310 112V124" stroke="#7dd3fc" stroke-width="1.5"/>
+          <path d="M310 134L304 122H316Z" fill="#7dd3fc"/>
+          <path d="M310 196V208" stroke="#7dd3fc" stroke-width="1.5"/>
+          <path d="M310 218L304 206H316Z" fill="#7dd3fc"/>
+          <path d="M310 280V292" stroke="#7dd3fc" stroke-width="1.5"/>
+          <path d="M310 302L304 290H316Z" fill="#7dd3fc"/>
+          <path d="M310 364V376" stroke="#7dd3fc" stroke-width="1.5"/>
+          <path d="M310 386L304 374H316Z" fill="#7dd3fc"/>
+
+          <text x="310" y="478" fill="#8497ab" font-family="ui-monospace, monospace" font-size="11.5" text-anchor="middle">no telemetry, no cloud — every arrow stays inside your LAN</text>
+        </svg>
+        <figcaption>One reading's journey. Ingest is a single write; all the computation happens when a view is opened.</figcaption>
+      </figure>
+      <p>That separation matters when you debug: if the point count does not increase, the problem sits between the node and the API; if it does, the problem is the engine or the points.</p>
+
+      <h2 id="three-kinds">Measured, interpolated, modelled</h2>
+      <p>The viewer mixes three kinds of value, and they are not interchangeable.</p>
+      <div class="grid cards">
+        <div class="card">
+          <span class="card-kicker">measured</span>
+          <span class="card-title">A number you stood still for</span>
+          <p>One sample at one position: the RSSI your adapter reported per BSSID during 15 seconds of scans. The only value that is not an estimate.</p>
+        </div>
+        <div class="card">
+          <span class="card-kicker">interpolated</span>
+          <span class="card-title">A guess between your points</span>
+          <p>IDW or kriging between measured points on the same floor. Accurate near a sample, progressively vaguer in the middle of a large empty room.</p>
+        </div>
+        <div class="card">
+          <span class="card-kicker">modelled</span>
+          <span class="card-title">Physics plus your walls</span>
+          <p>A log-distance path loss model with per-material wall losses, calibrated to your data. Covers the whole floor, at 4–7 dB RMSE.</p>
+        </div>
+      </div>
+      <p>The <strong>blended</strong> view is a weighted merge: interpolated near your points, modelled further away. It looks complete because it is complete, but a blended cell in an unvisited corner is mostly model.</p>
+      <p>Why insist on the difference? The action depends on it. A weak measured point is a fact: that corner is bad. A weak interpolated cell may be a real dead spot or a gap between samples. A weak modelled cell is a prediction that deserves a walk before you move an AP.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Label in the UI</th><th>What produced it</th><th>How much to trust it</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="badge ok">measured</span></td><td>A reading you posted at that position.</td><td>High, within the device's own ±1–2 dB variance.</td></tr>
+            <tr><td><span class="badge ok">interpolated</span></td><td>IDW or kriging between measured points.</td><td>High within 2 m of a sample, weak beyond 6 m.</td></tr>
+            <tr><td><span class="badge warn">model</span></td><td>Calibrated path loss with wall losses.</td><td>Good for trends and AP placement, not for judging a single spot.</td></tr>
+            <tr><td><span class="badge warn">blended</span></td><td>Weighted merge of the two above.</td><td>Read the source tooltip before acting on any cell.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="dbm">What dBm actually means</h2>
+      <p>RSSI is reported in dBm, a logarithmic ratio to one milliwatt. The numbers do not behave like intuition: −60 dBm is a thousand times more power than −90 dBm, yet the step from −70 to −60 is the same size as −40 to −30.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>RSSI</th><th>In practice</th><th>What still works</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>−30 dBm</td><td>Excellent — next to the AP</td><td>Everything, at the highest rates.</td></tr>
+            <tr><td>−50 dBm</td><td>Very strong</td><td>Everything; typical of the same room.</td></tr>
+            <tr><td>−60 dBm</td><td>Good</td><td>High throughput, stable latency.</td></tr>
+            <tr><td>−67 dBm</td><td>Good for video calls</td><td>Real-time voice and video without artefacts.</td></tr>
+            <tr><td>−75 dBm</td><td>Usable</td><td>Web, mail, streaming; calls stutter under load.</td></tr>
+            <tr><td>−80 dBm</td><td>Marginal</td><td>Background sync only. Roaming gets unreliable here.</td></tr>
+            <tr><td>−90 dBm</td><td>Unusable</td><td>Association may succeed; nothing transfers reliably.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The <strong>3 dB rule</strong> does most of the work: every 3 dB is a factor of two in power, so a wall that costs 3 dB halves the signal. In free space 6 dB roughly halves the usable range. Indoors the exponent is higher, so a 3 dB wall can cost more than a third of the remaining range.</p>
+      <p>Band choice is a trade-off you cannot win outright:</p>
+      <ul>
+        <li><strong>2.4 GHz</strong> reaches further and penetrates walls better. It has three non-overlapping channels (1, 6, 11) at 20 MHz, and shares the band with Bluetooth, microwaves and every neighbour.</li>
+        <li><strong>5 GHz</strong> starts about 6 dB weaker at one metre (40.2 dB versus 46.4 dB of free-space loss) and loses more per wall, but has far more spectrum and much less interference.</li>
+      </ul>
+      <p>So: 5 GHz for throughput in the same room, 2.4 GHz for reach and for devices that cannot do anything else.</p>
+
+      <h2 id="accuracy">Accuracy you can expect</h2>
+      <p>These are the numbers the tool is designed around, not a guarantee for your building.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>What you are looking at</th><th>Typical error</th><th>Why</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>A measured point, repeated at the same spot</td><td>±1–2 dB</td><td>Fading, orientation and body absorption; the device's own driver smoothing.</td></tr>
+            <tr><td>An interpolated cell 3–6 m from the nearest sample</td><td>±5 dB</td><td>Walls and furniture between your samples are invisible to the interpolator.</td></tr>
+            <tr><td>A model estimate anywhere on the floor</td><td>4–7 dB RMSE</td><td>Held-out error from 5-fold cross-validation on your own points.</td></tr>
+            <tr><td>A live position estimate</td><td>2–4 m</td><td>kNN over per-BSSID fingerprints, smoothed with an EMA; refuses below 3 shared BSSIDs.</td></tr>
+            <tr><td>A reading taken through <code>nmcli</code></td><td>±3 dB</td><td>NetworkManager reports 0–100 %, which is coarser than dBm.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Three consequences. A 5 dB difference between adjacent cells is inside the noise floor; a 15 dB difference is real. And a model reporting 4 dB RMSE is not automatically better than one reporting 6 dB on fewer points — check the point count first.</p>
+
+      <h2 id="limitations">Where this is honest about its limits</h2>
+      <ul>
+        <li><strong>One device, one antenna pattern.</strong> Your laptop's radio is not your phone's. A survey measures the surveying device; other clients differ by several dB.</li>
+        <li><strong>No spectrum analysis.</strong> The tool reads what your adapter can see. It cannot show a non-Wi-Fi interferer, and it cannot separate co-channel load from signal strength.</li>
+        <li><strong>One moment in time.</strong> A reading is 15 seconds, and doors, people, furniture, DFS events and neighbour traffic all move the numbers afterwards.</li>
+        <li><strong>Interpolation is not measurement.</strong> Large open rooms and thick walls are where interpolation is weakest, and where people ask it the hardest questions.</li>
+        <li><strong>Model calibration is only as good as the spread.</strong> Points in a line, or all in one room, produce a confident model that is wrong everywhere else.</li>
+        <li><strong>Position needs a fingerprint.</strong> Fewer than three shared BSSIDs, or a floor with no survey points, and the UI says it cannot estimate instead of guessing.</li>
+      </ul>
+      <div class="callout limit">
+        <p class="callout-title">Known limitation</p>
+        <p>This is not a certified site survey. It does not replace a calibrated survey kit for compliance or a business SLA, and it cannot measure throughput, latency or airtime. It answers "where is coverage weak and why" on your own hardware.</p>
+      </div>
+      <div class="callout note">
+        <p class="callout-title">Colour is not a verdict</p>
+        <p>The palette shows relative strength, not pass or fail. A room at −72 dBm can be fine for a laptop and unusable for a doorbell. Pick a threshold per device class, then read the numbers.</p>
+      </div>
+
+      <h2 id="glossary">Glossary</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Term</th><th>Meaning</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>RSSI</strong></td><td>Received signal strength, in dBm. Negative, and closer to zero is stronger.</td></tr>
+            <tr><td><strong>BSSID</strong></td><td>The MAC address of one radio on one AP. A dual-band AP has at least two, one per band.</td></tr>
+            <tr><td><strong>SSID</strong></td><td>The network name clients see. Several BSSIDs can carry the same SSID.</td></tr>
+            <tr><td><strong>Channel width</strong></td><td>20, 40, 80 or 160 MHz. Wider is faster per client but occupies more spectrum and hears more neighbours.</td></tr>
+            <tr><td><strong>Co-channel interference</strong></td><td>Two APs on the same channel sharing airtime. Shows up as good RSSI with bad throughput.</td></tr>
+            <tr><td><strong>IDW</strong></td><td>Inverse distance weighting: each measured point contributes in proportion to 1/d². Fast, local, and it cannot extrapolate sensibly.</td></tr>
+            <tr><td><strong>Kriging</strong></td><td>Interpolation with a fitted variogram, here a spherical model with an 8 m range. Smoother than IDW and it reports its own uncertainty.</td></tr>
+            <tr><td><strong>Fingerprint</strong></td><td>The vector of RSSI values per BSSID at a known position. Position estimation matches the live vector against stored ones.</td></tr>
+            <tr><td><strong>Held-out RMSE</strong></td><td>Root mean square error on points excluded from calibration, averaged over 5 folds. The model's honest self-assessment.</td></tr>
+            <tr><td><strong>Sticky client</strong></td><td>A device that stays associated with a distant AP instead of roaming to a closer one. Visible as a strong nearby AP and a weak serving AP.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Next, see where the readings come from in <a href="scanner-nodes.html">Scanner nodes</a>, or how the interpolation and the model are computed in <a href="heatmaps.html">Heatmaps</a> and <a href="propagation-model.html">Propagation model</a>.</p>
+
+    </article>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <span>Wi-Fi Survey v0.1 · public documentation</span>
+  <span class="spacer"></span>
+  <a href="privacy.html">Privacy</a>
+  <a href="contributing.html">Contributing</a>
+  <a href="changelog.html">Changelog</a>
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>
