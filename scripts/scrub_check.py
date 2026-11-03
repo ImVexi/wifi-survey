@@ -47,6 +47,8 @@ DENY_PATTERNS: list[tuple[str, str, int]] = [
     (r"\bVextroboomin\b", "household SSID", I),
     (r"\bVextroIOT\b", "household SSID", I),
     (r"\bpullen[ _-]?crib\b", "household SSID", I),
+    (r"\bjpullen724\b", "old GitHub account name", I),
+    (r"\bpullen\b", "household surname / old account name", I),
     (r"\bxfinity\w*\b", "household/neighbour SSID", I),
     (r"\bBedroom U7\b", "household AP name", I),
     (r"\bFamily room AC pro\b", "household AP name", I),

@@ -3,7 +3,7 @@
 This folder is the published documentation for Wi-Fi Survey: seventeen
 hand-written HTML pages, one stylesheet, one script. **No build step, no CDN, no
 fonts to download, no analytics, no cookies.** GitHub Pages serves it from branch
-`main`, folder `/docs` — <https://jpullen724-stack.github.io/wifi-survey/>.
+`main`, folder `/docs` — <https://imvexi.github.io/wifi-survey/>.
 
 ## Layout
 

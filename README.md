@@ -48,7 +48,7 @@ free TCP port. Debian 12, Ubuntu 22.04+, Fedora 39+ and Arch are the
 supported installs.
 
 ```bash
-git clone https://github.com/jpullen724-stack/wifi-survey.git
+git clone https://github.com/ImVexi/wifi-survey.git
 cd wifi-survey
 less installer/install.sh          # a few hundred lines of shell, worth reading
 sudo installer/install.sh          # interactive: port + mDNS name
@@ -168,7 +168,7 @@ shorter intervals reuse the cached list by design.
   Keep it on your LAN, or put a TLS-terminating reverse proxy with its own
   authentication in front of it. Never port-forward 8800.
 
-See <https://jpullen724-stack.github.io/wifi-survey/privacy.html> for the
+See <https://imvexi.github.io/wifi-survey/privacy.html> for the
 longer version.
 
 ## Tests
@@ -205,7 +205,7 @@ both create a throwaway database and output directory per run.
 ## Documentation
 
 The documentation site lives in `docs/` and is published by GitHub Pages at
-<https://jpullen724-stack.github.io/wifi-survey/>. Start at `index.html`,
+<https://imvexi.github.io/wifi-survey/>. Start at `index.html`,
 `install.html` or `scanner-nodes.html`. It is hand-written HTML with no build
 step; `docs/README.md` covers editing, previewing and the three checkers.
 
