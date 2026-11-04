@@ -9,7 +9,6 @@ and one token per paired node.
 from __future__ import annotations
 
 import asyncio
-import hmac
 import json
 import logging
 import os
@@ -239,21 +238,43 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "password_set": bool(password_file and Path(password_file).is_file()),
         }
 
+    admin_lock = threading.Lock()
+
     # ------------------------------------------------------------- auth
+    def viewer_auth(request: Request) -> dict[str, Any] | None:
+        """Resolve a viewer credential (bearer session/token or cookie), if any.
+
+        Returns ``None`` when nothing valid was sent. An explicit bearer that is
+        not a viewer credential is never rescued by a session cookie.
+        """
+        bearer = _bearer(request)
+        if bearer:
+            if auth.verify_session(settings.session_secret, bearer) is not None:
+                return {"role": "viewer", "via": "session"}
+            if settings.security.viewer_token and auth.constant_time_equals(
+                bearer, settings.security.viewer_token
+            ):
+                return {"role": "viewer", "via": "token"}
+            return None
+        cookie = request.cookies.get(SESSION_COOKIE)
+        if cookie and auth.verify_session(settings.session_secret, cookie) is not None:
+            return {"role": "viewer", "via": "session"}
+        return None
+
     @app.middleware("http")
     async def auth_middleware(request: Request, call_next):
         request.state.auth = None
         path = request.url.path
         method = request.method.upper()
 
-        if path in PUBLIC_PATHS or path.startswith("/static/"):
-            # /api/v1/setup/admin is only open until an admin exists.
-            if path == "/api/v1/setup/admin" and db.has_admin():
-                pass  # fall through to viewer check below
-            else:
-                return await call_next(request)
+        if path.startswith("/static/"):
+            return await call_next(request)
 
-        if path == "/api/v1/setup/admin" and not db.has_admin():
+        if path in PUBLIC_PATHS:
+            # Public paths never reject, but they still see who is signed in
+            # (e.g. /api/v1/auth/me must report an existing session).
+            # /api/v1/setup/admin checks its own setup token in the handler.
+            request.state.auth = viewer_auth(request)
             return await call_next(request)
 
         role = "node" if (
@@ -273,28 +294,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             request.state.auth = {"role": "node", "node": node, "node_id": node["node_id"]}
             return await call_next(request)
 
-        cookie = request.cookies.get(SESSION_COOKIE)
-        bearer = _bearer(request)
-        if bearer:
-            session = auth.verify_session(settings.session_secret, bearer)
-            if session is not None:
-                request.state.auth = {"role": "viewer", "via": "session"}
-                return await call_next(request)
-            if settings.security.viewer_token and auth.constant_time_equals(
-                bearer, settings.security.viewer_token
-            ):
-                request.state.auth = {"role": "viewer", "via": "token"}
-                return await call_next(request)
-            # An explicit bearer that is not a viewer credential must not be
-            # rescued by an unrelated session cookie.
+        resolved = viewer_auth(request)
+        if resolved is not None:
+            request.state.auth = resolved
+            return await call_next(request)
+        if _bearer(request):
             return JSONResponse(
                 {"code": "unauthorized", "message": "bearer token is not a viewer credential"},
                 status_code=401,
             )
-        session = auth.verify_session(settings.session_secret, cookie) if cookie else None
-        if session is not None:
-            request.state.auth = {"role": "viewer", "via": "session"}
-            return await call_next(request)
         return JSONResponse(
             {"code": "unauthorized", "message": "sign in or send the viewer token"},
             status_code=401,
@@ -350,7 +358,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if admin_hash:
             valid = auth.verify_password(body.password, admin_hash)
         if not valid and settings.security.viewer_token:
-            valid = hmac.compare_digest(body.password, settings.security.viewer_token)
+            # compare as bytes: hmac.compare_digest(str, str) raises TypeError
+            # on non-ASCII input, which surfaced as a 500.
+            valid = auth.constant_time_equals(body.password, settings.security.viewer_token)
         if not valid:
             raise HTTPException(
                 status_code=401,
@@ -378,13 +388,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"authenticated": state.get("role") == "viewer", "setup": setup_status()}
 
     @app.post("/api/v1/setup/admin")
-    async def setup_admin(body: AdminSetup):
+    async def setup_admin(body: AdminSetup, request: Request):
         if db.has_admin():
             raise HTTPException(
                 status_code=409,
                 detail={"code": "admin_exists", "message": "an admin password is already set"},
             )
-        db.set_setting("admin_hash", auth.hash_password(body.password))
+        # Without this, anyone on the LAN who reaches a fresh install before
+        # its owner could claim the admin password and a session. Proving
+        # possession of the installer-printed viewer token (in the body or as
+        # a bearer header) closes that window.
+        expected = settings.security.viewer_token
+        if expected:
+            state = getattr(request.state, "auth", None) or {}
+            supplied = body.setup_token or ""
+            if state.get("role") != "viewer" and not (
+                supplied and auth.constant_time_equals(supplied, expected)
+            ):
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "code": "setup_token_required",
+                        "message": "enter the viewer token printed by the installer",
+                    },
+                )
+        with admin_lock:
+            if db.has_admin():
+                raise HTTPException(
+                    status_code=409,
+                    detail={"code": "admin_exists", "message": "an admin password is already set"},
+                )
+            db.set_setting("admin_hash", auth.hash_password(body.password))
         token = auth.make_session(
             settings.session_secret, ttl_hours=settings.security.session_ttl_hours
         )

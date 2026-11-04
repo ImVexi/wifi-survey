@@ -388,39 +388,52 @@ class Database:
         rssi_source: str | None, now: datetime,
     ) -> tuple[int | None, bool]:
         pos = position or {}
+        # One transaction for the scan row and its readings. In autocommit mode
+        # a failure while inserting readings used to leave a committed scan row
+        # with no readings, and the client's retry was then reported as a
+        # "duplicate", so the readings were lost for good.
         with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
             try:
-                cur = self._conn.execute(
-                    """INSERT INTO scans (node_id, node_type, scan_id, timestamp, mode,
-                                          pos_x, pos_y, pos_z, floor, rssi_source, received_at)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                    (
-                        node_id, node_type, scan_id, to_iso(timestamp), mode,
-                        pos.get("x"), pos.get("y"), pos.get("z"), pos.get("floor"),
-                        rssi_source, to_iso(now),
-                    ),
-                )
-            except sqlite3.IntegrityError:
-                row = self._conn.execute(
-                    "SELECT id FROM scans WHERE scan_id=?", (scan_id,)
-                ).fetchone()
-                return (int(row["id"]) if row else None), False
-            scan_pk = int(cur.lastrowid)
-            self._conn.executemany(
-                """INSERT INTO readings (scan_pk, bssid, ssid, band, channel, freq,
-                                         rssi_dbm, signal_pct)
-                   VALUES (?,?,?,?,?,?,?,?)""",
-                [
-                    (
-                        scan_pk, r["bssid"], r.get("ssid"), r["band"], int(r["channel"]),
-                        int(r["freq"]), r.get("rssi_dbm"), r.get("signal_pct"),
+                try:
+                    cur = self._conn.execute(
+                        """INSERT INTO scans (node_id, node_type, scan_id, timestamp, mode,
+                                              pos_x, pos_y, pos_z, floor, rssi_source,
+                                              received_at)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                        (
+                            node_id, node_type, scan_id, to_iso(timestamp), mode,
+                            pos.get("x"), pos.get("y"), pos.get("z"), pos.get("floor"),
+                            rssi_source, to_iso(now),
+                        ),
                     )
-                    for r in readings
-                ],
-            )
-            self._conn.execute(
-                "UPDATE nodes SET last_seen=? WHERE node_id=?", (to_iso(now), node_id)
-            )
+                except sqlite3.IntegrityError:
+                    self._conn.execute("ROLLBACK")
+                    row = self._conn.execute(
+                        "SELECT id FROM scans WHERE scan_id=?", (scan_id,)
+                    ).fetchone()
+                    return (int(row["id"]) if row else None), False
+                scan_pk = int(cur.lastrowid)
+                self._conn.executemany(
+                    """INSERT INTO readings (scan_pk, bssid, ssid, band, channel, freq,
+                                             rssi_dbm, signal_pct)
+                       VALUES (?,?,?,?,?,?,?,?)""",
+                    [
+                        (
+                            scan_pk, r["bssid"], r.get("ssid"), r["band"], int(r["channel"]),
+                            int(r["freq"]), r.get("rssi_dbm"), r.get("signal_pct"),
+                        )
+                        for r in readings
+                    ],
+                )
+                self._conn.execute(
+                    "UPDATE nodes SET last_seen=? WHERE node_id=?", (to_iso(now), node_id)
+                )
+                self._conn.execute("COMMIT")
+            except BaseException:
+                if self._conn.in_transaction:
+                    self._conn.execute("ROLLBACK")
+                raise
             return scan_pk, True
 
     def recent_scans(self, node_id: str | None, limit: int) -> list[dict[str, Any]]:

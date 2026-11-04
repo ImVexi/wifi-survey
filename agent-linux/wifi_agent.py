@@ -20,6 +20,7 @@ import argparse
 import json
 import os
 import queue
+import re
 import signal
 import socket
 import sqlite3
@@ -39,6 +40,8 @@ VERSION = "2.0.0"
 NODE_TYPE = "laptop"
 OUTBOX_CAP = 50000
 BATCH = 50
+# HTTP statuses that mean "this payload will never be accepted" (not "try later").
+PERMANENT_REJECTIONS = (400, 413, 422)
 
 # NetworkManager refuses a rescan within ~10 s of the previous one
 # ("Scanning not allowed immediately following previous scan"). Asking
@@ -103,11 +106,47 @@ def channel_from_freq(freq):
         return 14
     if 2412 <= f < 2484:
         return (f - 2407) // 5
-    if 4900 <= f < 5925:
+    if 4910 <= f <= 4980:
+        # 802.11j 4.9 GHz channels (182-196) are numbered from 4000 MHz.
+        return (f - 4000) // 5
+    if 5005 <= f < 5925:
         return (f - 5000) // 5
-    if f >= 5925:
+    if f == 5935:
+        # 6 GHz channel 2 is the one centre off the 5950 MHz grid.
+        return 2
+    if 5955 <= f <= 7115:
         return (f - 5950) // 5
     return None
+
+
+BANDS = ("2.4", "5", "6")
+BSSID_RE = re.compile(r"^[0-9a-f]{2}(:[0-9a-f]{2}){5}$")
+
+
+def _is_int(value):
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def is_valid_reading(r):
+    """True when ``r`` passes the server's BatchReading schema.
+
+    The server validates a whole /api/v1/scans batch at once, so a single BSS
+    with an unknown band or an off-grid channel used to get the entire batch
+    rejected with 422. Readings that would fail are dropped here instead.
+    """
+    if not isinstance(r, dict):
+        return False
+    if not BSSID_RE.match(str(r.get("bssid") or "")):
+        return False
+    if r.get("band") not in BANDS:
+        return False
+    channel, freq = r.get("channel"), r.get("freq_mhz")
+    if not (_is_int(channel) and 1 <= channel <= 233):
+        return False
+    if not (_is_int(freq) and 2400 <= freq <= 7125):
+        return False
+    pct = r.get("signal_pct")
+    return pct is None or (_is_int(pct) and 0 <= pct <= 100)
 
 
 def host_ip():
@@ -837,7 +876,7 @@ class Agent(object):
             "mode": mode,
             "position": self.position,
             "rssi_source": "iw_dbm" if self.iw_ok else "nmcli_pct_est",
-            "readings": readings,
+            "readings": [r for r in readings if is_valid_reading(r)],
         }
 
     # -- threads -----------------------------------------------------------
@@ -878,10 +917,11 @@ class Agent(object):
 
     def uploader_loop(self):
         backoff = 1.0
+        limit = BATCH
         while not self.stop.is_set():
             self.state.outbox_depth = self.outbox.depth()
             self.state.dropped = self.outbox.dropped
-            rows = self.outbox.peek(BATCH)
+            rows = self.outbox.peek(limit)
             if not rows:
                 self.uploader_wake.wait(0.5)
                 self.uploader_wake.clear()
@@ -908,6 +948,25 @@ class Agent(object):
                 self.state.record_upload(size, len(scans), accepted, dups)
                 self.state.outbox_depth = self.outbox.depth()
                 backoff = 1.0
+                limit = BATCH
+            elif status in PERMANENT_REJECTIONS:
+                # Retrying the same payload can never succeed. Narrow the batch
+                # down to the offending scan, then drop just that one so the
+                # rest of the outbox keeps flowing.
+                backoff = 1.0
+                if len(scans) > 1:
+                    log("upload: HTTP %s for a batch of %d; retrying one scan at a time"
+                        % (status, len(scans)))
+                    limit = 1
+                    continue
+                message = body.get("message") if isinstance(body, dict) else None
+                self.outbox.delete([s["scan_id"] for s in scans])
+                self.outbox.dropped += 1
+                with self.state.lock:
+                    self.state.last_error = "upload: scan rejected (HTTP %s): %s" % (
+                        status, message or "no detail")
+                log("upload: server rejected scan %s (HTTP %s): %s; dropped"
+                    % (scans[0].get("scan_id"), status, message or "no detail"))
             else:
                 msg = err or ("HTTP %s" % status)
                 with self.state.lock:

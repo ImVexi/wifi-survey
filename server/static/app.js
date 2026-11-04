@@ -154,8 +154,9 @@ $("#admin-form").addEventListener("submit", async (event) => {
     const result = await api("/api/v1/setup/admin", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ password, setup_token: $("#admin-setup-token").value.trim() }),
     });
+    $("#admin-setup-token").value = "";
     $("#admin-password").value = "";
     $("#admin-confirm").value = "";
     applyStatus(result.setup);
