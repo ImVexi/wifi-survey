@@ -229,6 +229,9 @@ class FloorsUpdate(BaseModel):
 
 class AdminSetup(BaseModel):
     password: str = Field(min_length=8, max_length=256)
+    # The installer-printed viewer token; required on first run so a stranger
+    # on the LAN cannot claim the admin password before the owner does.
+    setup_token: str | None = Field(default=None, max_length=256)
 
 
 class LoginRequest(BaseModel):

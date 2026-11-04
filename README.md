@@ -64,9 +64,10 @@ answers as `survey.local`. It prints the URL and the token once:
     viewer token  3JZlMOCFPQro-5iG0T2YykalAN_T7MmZ38ucXAr8HEQ
 ```
 
-Open the URL: the first-run wizard asks for an admin password, a model
-upload, floor names and (optionally) your APs. The printed viewer token
-also works on the sign-in screen for recovery. The installer is
+Open the URL: the first-run wizard asks for the printed viewer token (so
+nobody else on the LAN can claim the install first), an admin password, a
+model upload, floor names and (optionally) your APs. The printed viewer
+token also works on the sign-in screen for recovery. The installer is
 idempotent: re-running repairs the venv and the unit and never overwrites
 an existing token or database.
 
