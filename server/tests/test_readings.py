@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import copy
+from datetime import UTC, datetime
+
+import pytest
+
+from wifisurvey.db import Database
 
 
 def test_ingest_documented_reading(viewer, pair_node, sample_reading):
@@ -161,3 +166,29 @@ def test_bssid_table_aggregates(viewer, pair_node, sample_reading):
     assert len(rows) == 2
     assert rows[0]["ssid"] == "example-net"
     assert rows[0]["n"] == 1
+
+
+def test_failed_reading_insert_does_not_leave_an_orphan_scan(tmp_path):
+    # Regression: insert_scan ran in autocommit mode, so a failure while
+    # inserting readings left the scan row behind, and the retry was then
+    # reported as a duplicate, losing the readings for good.
+    db = Database(str(tmp_path / "survey.db"))
+    now = datetime(2026, 2, 14, 19, 42, 7, tzinfo=UTC)
+    good = {"bssid": "aa:bb:cc:00:00:01", "ssid": "x", "band": "5",
+            "channel": 44, "freq": 5220, "rssi_dbm": -52.0, "signal_pct": None}
+    kwargs = dict(node_id="laptop-hall", node_type="laptop", scan_id="scan-1",
+                  timestamp=now, mode="background", position=None,
+                  rssi_source="iw_dbm", now=now)
+    try:
+        with pytest.raises(ValueError):
+            db.insert_scan(readings=[good, {**good, "channel": "not-a-number"}], **kwargs)
+        assert db.one("SELECT COUNT(*) AS n FROM scans")["n"] == 0
+        assert db.one("SELECT COUNT(*) AS n FROM readings")["n"] == 0
+
+        _pk, inserted = db.insert_scan(readings=[good], **kwargs)
+        assert inserted is True
+        _pk, inserted = db.insert_scan(readings=[good], **kwargs)
+        assert inserted is False
+        assert db.one("SELECT COUNT(*) AS n FROM readings")["n"] == 1
+    finally:
+        db.close()

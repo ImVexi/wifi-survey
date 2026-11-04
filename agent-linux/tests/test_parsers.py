@@ -188,6 +188,23 @@ class BandMathTests(unittest.TestCase):
         self.assertEqual(wifi_agent.channel_from_freq(5745), 149)
         self.assertEqual(wifi_agent.channel_from_freq(6135), 37)
 
+    def test_six_ghz_edge_channels(self):
+        # Channel 2 (5935 MHz) is off the 5950 MHz grid; it used to come out
+        # as -3, which the server rejects.
+        self.assertEqual(wifi_agent.channel_from_freq(5935), 2)
+        self.assertEqual(wifi_agent.channel_from_freq(5955), 1)
+        self.assertEqual(wifi_agent.channel_from_freq(7115), 233)
+        self.assertIsNone(wifi_agent.channel_from_freq(5925))
+
+    def test_four_nine_ghz_channels_are_positive(self):
+        self.assertEqual(wifi_agent.channel_from_freq(4920), 184)
+        self.assertEqual(wifi_agent.channel_from_freq(4980), 196)
+
+    def test_unknown_frequencies_have_no_channel(self):
+        for freq in (None, "junk", 3000, 4900, 5000, 7200):
+            channel = wifi_agent.channel_from_freq(freq)
+            self.assertTrue(channel is None or channel >= 1, (freq, channel))
+
     def test_pct_mapping_endpoints(self):
         self.assertEqual(wifi_agent.pct_to_dbm(0), -100.0)
         self.assertEqual(wifi_agent.pct_to_dbm(100), -40.0)
@@ -301,6 +318,29 @@ class ScanPayloadTests(unittest.TestCase):
         agent = self._agent(position={"x": 1.5, "y": 2.0, "floor": 0})
         scan = agent.build_scan(wifi_agent.parse_nmcli_wifi(NMCLI_OUT), "background")
         self.assertEqual(scan["position"], {"x": 1.5, "y": 2.0, "floor": 0})
+
+    def test_build_scan_drops_readings_the_server_would_reject(self):
+        agent = self._agent()
+        good = wifi_agent.parse_nmcli_wifi(NMCLI_OUT)
+        bad = [
+            dict(good[0], bssid="aa:bb:cc:11:22:f1", band=None),
+            dict(good[0], bssid="aa:bb:cc:11:22:f2", channel=-3),
+            dict(good[0], bssid="aa:bb:cc:11:22:f3", channel=None),
+            dict(good[0], bssid="aa:bb:cc:11:22:f4", freq_mhz=None),
+            dict(good[0], bssid="aa:bb:cc:11:22:f5", signal_pct=140),
+            dict(good[0], bssid="not-a-bssid"),
+        ]
+        scan = agent.build_scan(good + bad, "background")
+        self.assertEqual(len(scan["readings"]), len(good))
+        for reading in scan["readings"]:
+            self.assertTrue(wifi_agent.is_valid_reading(reading), reading)
+
+    def test_iw_reading_without_freq_is_not_uploaded(self):
+        agent = self._agent()
+        out = "BSS aa:bb:cc:11:22:99 (on wlan0)\n\tsignal: -50.00 dBm\n\tSSID: x\n"
+        readings = wifi_agent.parse_iw_scan(out)
+        self.assertEqual(len(readings), 1)  # the parser keeps it, but it is never uploaded
+        self.assertEqual(agent.build_scan(readings, "background")["readings"], [])
 
     def test_node_type_override(self):
         agent = self._agent(node_type="desktop")

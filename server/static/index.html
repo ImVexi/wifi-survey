@@ -52,6 +52,8 @@
         <h2>Choose an admin password</h2>
         <p class="muted">At least 8 characters. It protects the dashboard and pairing codes; there is no recovery e-mail.</p>
         <form id="admin-form">
+          <label for="admin-setup-token">Viewer token</label>
+          <input id="admin-setup-token" type="password" required autocomplete="off" spellcheck="false" placeholder="printed by the installer">
           <label for="admin-password">Password</label>
           <input id="admin-password" type="password" minlength="8" required autocomplete="new-password">
           <label for="admin-confirm">Repeat password</label>

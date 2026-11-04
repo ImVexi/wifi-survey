@@ -166,7 +166,11 @@ def main(argv: list[str] | None = None) -> int:
         assert status == 200 and body["setup_required"], body
         summary["wizard_errors"] = browser_check(base, tmp / "wizard.png", wizard=True)
 
-        status, body = api.json("POST", "/api/v1/setup/admin", {"password": ADMIN_PASSWORD})
+        viewer_token = init.stdout.split("viewer token:", 1)[1].split()[0]
+        status, body = api.json(
+            "POST", "/api/v1/setup/admin",
+            {"password": ADMIN_PASSWORD, "setup_token": viewer_token},
+        )
         assert status == 200, body
 
         fixture = REPO / "tests/fixtures/sample_house.glb"

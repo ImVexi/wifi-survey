@@ -19,6 +19,7 @@ from wifisurvey.main import create_app  # noqa: E402
 VIEWER_TOKEN = "test-viewer-token"
 PAIRING_SECRET = "test-pairing-secret"
 ADMIN_PASSWORD = "correct horse battery"
+ADMIN_SETUP = {"password": ADMIN_PASSWORD, "setup_token": VIEWER_TOKEN}
 
 
 @pytest.fixture(scope="session")
@@ -60,7 +61,7 @@ def client(app):
 @pytest.fixture()
 def viewer(client):
     """A client with an admin password set and a live session cookie."""
-    response = client.post("/api/v1/setup/admin", json={"password": ADMIN_PASSWORD})
+    response = client.post("/api/v1/setup/admin", json=ADMIN_SETUP)
     assert response.status_code == 200, response.text
     return client
 

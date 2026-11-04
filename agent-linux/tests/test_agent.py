@@ -13,6 +13,8 @@ import json
 import os
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from unittest import mock
 
@@ -176,6 +178,69 @@ class UploadAuthTests(FakeNmcliCase):
         self.assertEqual(
             srv.requests[0]["headers"]["Authorization"], "Bearer node-token-test"
         )
+
+
+class UploaderPoisonBatchTests(FakeNmcliCase):
+    def _scan(self, agent, scan_id):
+        scan = agent.build_scan(
+            [{"bssid": "aa:bb:cc:11:22:01", "ssid": "home", "band": "2.4",
+              "channel": 6, "freq_mhz": 2437, "rssi_dbm": -50.0, "signal_pct": None}],
+            "background",
+        )
+        scan["scan_id"] = scan_id
+        return scan
+
+    def test_rejected_scan_is_dropped_and_the_rest_upload(self):
+        uploaded = []
+
+        def scans(body, headers):
+            batch = body.get("scans") or []
+            if any(s.get("scan_id") == "bad" for s in batch):
+                return 422, {"code": "validation_error", "message": "scans.1: bad"}
+            uploaded.extend(s["scan_id"] for s in batch)
+            return 200, {"accepted": len(batch), "duplicates": 0}
+
+        srv = StubServer({"/api/v1/scans": scans})
+        self.addCleanup(srv.stop)
+        agent = wifi_agent.Agent(dict(self.cfg, server_url=srv.url,
+                                      state_dir=os.path.join(self.tmp.name, "poison")))
+        self.addCleanup(agent.outbox.close)
+        for scan_id in ("good-1", "bad", "good-2"):
+            self.assertTrue(agent.outbox.put(self._scan(agent, scan_id)))
+
+        thread = threading.Thread(target=agent.uploader_loop, daemon=True)
+        thread.start()
+        deadline = time.time() + 10
+        while agent.outbox.depth() and time.time() < deadline:
+            time.sleep(0.05)
+        depth = agent.outbox.depth()
+        agent.stop.set()
+        agent.uploader_wake.set()
+        thread.join(timeout=5)
+
+        self.assertEqual(depth, 0, "outbox stalled behind a rejected scan")
+        self.assertEqual(sorted(uploaded), ["good-1", "good-2"])
+        self.assertEqual(agent.outbox.dropped, 1)
+
+    def test_server_errors_are_still_retried(self):
+        srv = StubServer({"/api/v1/scans": lambda body, headers: (503, {})})
+        self.addCleanup(srv.stop)
+        agent = wifi_agent.Agent(dict(self.cfg, server_url=srv.url,
+                                      state_dir=os.path.join(self.tmp.name, "retry")))
+        self.addCleanup(agent.outbox.close)
+        agent.outbox.put(self._scan(agent, "keep-me"))
+
+        thread = threading.Thread(target=agent.uploader_loop, daemon=True)
+        thread.start()
+        deadline = time.time() + 5
+        while not srv.requests and time.time() < deadline:
+            time.sleep(0.05)
+        agent.stop.set()
+        agent.uploader_wake.set()
+        thread.join(timeout=5)
+
+        self.assertTrue(srv.requests)
+        self.assertEqual(agent.outbox.dropped, 0)
 
 
 if __name__ == "__main__":
